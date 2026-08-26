@@ -1,0 +1,30 @@
+# --- secretos -------------------------------------------------------------
+# Lo primero de la lista y por algo: aquí dentro van las claves de la base de
+# datos de producción, la de Stripe y dos cuentas de servicio de Firebase. Lo
+# que entra una vez en un repositorio se queda para siempre, aunque se borre
+# en el commit siguiente.
+.env
+.env.*
+!.env.example
+*.serviceaccount.json
+*-firebase-adminsdk-*.json
+
+# --- backend --------------------------------------------------------------
+api/target/
+api/src/main/resources/static/
+*.jar
+!api/.mvn/wrapper/maven-wrapper.jar
+
+# --- front ----------------------------------------------------------------
+web/node_modules/
+web/dist/
+web/.angular/
+web/out-tsc/
+
+# --- entornos y sistema ---------------------------------------------------
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+npm-debug.log*

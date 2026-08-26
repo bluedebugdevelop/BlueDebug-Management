@@ -1,0 +1,8 @@
+{
+  "//": "En desarrollo el front va en el 4200 y la API en el 8080. Con este proxy, el navegador ve un solo origen: las llamadas a /api salen del mismo sitio que la página y la cookie de sesión viaja sin pelearse con SameSite ni con CORS. Es lo que hace que local y producción se comporten igual.",
+  "/api": {
+    "target": "http://localhost:8080",
+    "secure": false,
+    "changeOrigin": false
+  }
+}

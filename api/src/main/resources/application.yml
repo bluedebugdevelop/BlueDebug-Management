@@ -1,0 +1,89 @@
+# ==========================================================================
+# BlueDebug Management
+#
+# Todo lo que hay aquí se rellena con variables de entorno. NINGÚN secreto se
+# escribe en este fichero: va al repositorio, y lo que se sube a un repositorio
+# se queda ahí para siempre aunque luego se borre.
+#
+# En local, las variables se ponen en `api/.env` (que .gitignore ya excluye) o
+# en la configuración de ejecución del IDE. En producción, en las variables de
+# Railway. La lista completa, con de dónde sale cada una, está en el README.
+# ==========================================================================
+
+server:
+  port: ${PORT:8080}
+  # Railway mete un proxy delante. Sin esto, las cabeceras X-Forwarded-* se
+  # ignoran y la aplicación se cree en http, con lo que la cookie Secure no
+  # llegaría nunca.
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,application/javascript,image/svg+xml
+  error:
+    # El navegador no tiene por qué ver la traza ni el nombre de la excepción.
+    include-message: never
+    include-stacktrace: never
+
+spring:
+  application:
+    name: bluedebug-management
+  jackson:
+    # Fechas como texto ISO-8601 y no como números: el front las lee con
+    # `new Date(...)` sin conversiones raras, y en el JSON se leen a simple vista.
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+  web:
+    resources:
+      # El Angular compilado se copia aquí en el build (ver Dockerfile).
+      static-locations: classpath:/static/
+      cache:
+        cachecontrol:
+          max-age: 1h
+
+bluedebug:
+  cache:
+    segundos: ${BLUEDEBUG_CACHE_SEGUNDOS:60}
+
+  seguridad:
+    # Client id de OAuth del proyecto de Google. No es secreto: viaja al navegador.
+    google-client-id: ${BLUEDEBUG_GOOGLE_CLIENT_ID:}
+    # Con qué se firma la cookie de sesión. Genérala con: openssl rand -base64 48
+    secreto: ${BLUEDEBUG_SECRETO:}
+    # QUIÉN ENTRA. Nadie más, tenga la cuenta de Google que tenga.
+    permitidos: ${BLUEDEBUG_PERMITIDOS:bluedebug.develop@gmail.com}
+    horas-sesion: ${BLUEDEBUG_HORAS_SESION:12}
+    # En producción, true. En local sobre http hay que dejarlo en false o el
+    # navegador tira la cookie y el acceso entra en un bucle.
+    cookie-segura: ${BLUEDEBUG_COOKIE_SEGURA:true}
+    # Solo para desarrollo: el `ng serve` en otro puerto. Vacío en producción,
+    # donde el front lo sirve este mismo proceso y no hay petición cruzada.
+    origenes-web: ${BLUEDEBUG_ORIGENES_WEB:}
+
+  vbstats:
+    # La conexión a su MySQL. Vale la url de Railway tal cual (mysql://...).
+    url: ${BLUEDEBUG_VBSTATS_URL:}
+    usuario: ${BLUEDEBUG_VBSTATS_USUARIO:}
+    clave: ${BLUEDEBUG_VBSTATS_CLAVE:}
+    # Clave de Stripe. Que sea una RESTRINGIDA de solo lectura: el panel lee
+    # cobros, nunca cobra.
+    stripe-clave: ${BLUEDEBUG_VBSTATS_STRIPE:}
+    # La misma cuenta de servicio que usa el backend de VBStats para FCM.
+    firebase-json: ${BLUEDEBUG_VBSTATS_FIREBASE:}
+
+  cvo:
+    # Cuenta de servicio del proyecto cv-oviedo, en base64.
+    firebase-json: ${BLUEDEBUG_CVO_FIREBASE:}
+    web-url: ${BLUEDEBUG_CVO_WEB:https://clubvoleiboloviedo.com}
+
+logging:
+  level:
+    root: INFO
+    com.bluedebug.gestion: INFO
+    # Hikari avisa de cada conexión que abre y cierra; con dos pools por app eso
+    # es ruido que tapa lo que importa.
+    com.zaxxer.hikari: WARN
+    # El SDK de Firestore es muy hablador en DEBUG y no aporta nada aquí.
+    com.google.cloud: WARN
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %logger{25} - %msg%n"

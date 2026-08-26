@@ -1,0 +1,5 @@
+# El cargador del `.env` tiene que correr antes de que exista el contexto de
+# Spring, así que no puede ser un bean: se registra aquí, que es el único gancho
+# que se ejecuta tan pronto.
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.bluedebug.gestion.comun.CargadorEnv

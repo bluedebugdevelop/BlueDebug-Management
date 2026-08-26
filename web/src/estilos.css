@@ -1,0 +1,286 @@
+/* ==========================================================================
+   BlueDebug Management — estilos base.
+
+   La paleta es la misma de bluedebug.com (estilos/styles.css de la web), para
+   que el panel se sienta parte de la casa y no una herramienta prestada.
+
+   Es oscuro y sin alternativa clara a propósito: esto se mira de noche, con
+   gráficas, y un tema claro obligaría a mantener dos paletas de datos
+   (los colores de las series tienen que contrastar con el fondo) para una
+   pantalla que usa una sola persona.
+   ========================================================================== */
+
+:root {
+  --fondo: #0a0e27;
+  --fondo-2: #0f132c;
+  --superficie: #111831;
+  --superficie-alta: #151d3b;
+  --borde: rgba(255, 255, 255, 0.1);
+  --borde-fuerte: rgba(255, 255, 255, 0.2);
+
+  --texto: #e5e7eb;
+  --texto-2: #b8c1d8;
+  --texto-3: #8fa0c2;
+
+  --acento: #2196f3;
+  --acento-claro: #64b5f6;
+  --acento-suave: rgba(33, 150, 243, 0.12);
+
+  --bien: #22c55e;
+  --aviso: #f59e0b;
+  --mal: #ef4444;
+
+  --radio: 14px;
+  --radio-chico: 9px;
+  --transicion: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+
+  --sombra: 0 12px 32px rgba(0, 0, 0, 0.35);
+
+  --fuente: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', monospace;
+
+  color-scheme: dark;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--fuente);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--texto);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-chico);
+  padding: 0.6rem 0.75rem;
+  width: 100%;
+  transition: border-color var(--transicion), box-shadow var(--transicion);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--acento);
+  box-shadow: 0 0 0 3px var(--acento-suave);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+/* La barra de scroll por defecto en oscuro es un tajo blanco en mitad de la
+   pantalla. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* --- piezas que se repiten en varias pantallas ------------------------- */
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 1.25rem;
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--radio-chico);
+  background: var(--acento);
+  color: #05122a;
+  font-weight: 600;
+  transition: background var(--transicion), transform var(--transicion), opacity var(--transicion);
+}
+
+.boton:hover:not(:disabled) {
+  background: var(--acento-claro);
+}
+
+.boton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.boton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.boton.secundario {
+  background: transparent;
+  border: 1px solid var(--borde-fuerte);
+  color: var(--texto);
+}
+
+.boton.secundario:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.boton.peligro {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+
+.boton.peligro:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.etiqueta {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--texto-2);
+  margin-bottom: 0.35rem;
+}
+
+.ayuda {
+  font-size: 0.78rem;
+  color: var(--texto-3);
+  margin-top: 0.35rem;
+}
+
+.pastilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--texto-2);
+  white-space: nowrap;
+}
+
+.pastilla.bien {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+}
+
+.pastilla.aviso {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
+.pastilla.mal {
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+}
+
+.pastilla.acento {
+  background: var(--acento-suave);
+  color: var(--acento-claro);
+}
+
+/* Las tablas anchas hacen scroll dentro de su caja, nunca la página entera. */
+.marco-tabla {
+  overflow-x: auto;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+thead th {
+  text-align: left;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-3);
+  background: var(--fondo-2);
+  border-bottom: 1px solid var(--borde);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+
+tbody td {
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--texto-2);
+  vertical-align: middle;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+td.numero,
+th.numero {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.titulo-seccion {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.9rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

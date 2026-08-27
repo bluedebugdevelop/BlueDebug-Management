@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core'
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core'
 import { ActivatedRoute, Router } from '@angular/router'
 import { firstValueFrom } from 'rxjs'
 
@@ -165,6 +173,39 @@ export class PaginaAcceso {
   protected readonly configurado = signal(false)
   protected readonly error = signal<string | null>(null)
 
+  /** El client id, ya con el script de Google cargado y listo para pintar. */
+  private readonly clientId = signal<string | null>(null)
+  private pintado = false
+
+  constructor() {
+    /*
+      El botón se pinta cuando coinciden DOS cosas: que se sepa el client id y
+      que el <div> de destino exista de verdad en el DOM.
+
+      Merece la pena entender por qué esto es un efecto y no una llamada al final
+      de ngOnInit, porque la versión ingenua falla de una forma muy fea: se pone
+      `cargando` a false y se llama a renderButton acto seguido, pero Angular aún
+      no ha vuelto a pintar la plantilla, así que el viewChild todavía está
+      vacío. Google no tiene dónde escribir, la llamada no da ningún error, y en
+      pantalla queda un hueco de 44 píxeles donde debería estar el botón de
+      acceso. Nadie puede entrar y no hay nada en la consola que lo explique.
+
+      Con un efecto no hay que adivinar cuándo está listo el DOM: `boton()` es
+      una señal que se actualiza justo cuando la vista existe, y el efecto se
+      vuelve a ejecutar solo en ese momento.
+    */
+    effect(() => {
+      const destino = this.boton()?.nativeElement
+      const id = this.clientId()
+
+      if (!destino || !id || this.pintado) {
+        return
+      }
+      this.pintado = true
+      this.pintarBoton(destino, id)
+    })
+  }
+
   async ngOnInit(): Promise<void> {
     try {
       const config = await firstValueFrom(this.api.configuracionAcceso())
@@ -172,24 +213,16 @@ export class PaginaAcceso {
 
       if (config.configurado) {
         await cargarScriptDeGoogle()
-        // El botón lo pinta Angular en el mismo ciclo, así que hay que esperar a
-        // que el elemento exista antes de que Google escriba dentro.
-        this.cargando.set(false)
-        queueMicrotask(() => this.pintarBoton(config.googleClientId))
-        return
+        this.clientId.set(config.googleClientId)
       }
     } catch (fallo) {
       this.error.set((fallo as ErrorApi).mensaje)
+    } finally {
+      this.cargando.set(false)
     }
-    this.cargando.set(false)
   }
 
-  private pintarBoton(clientId: string): void {
-    const destino = this.boton()?.nativeElement
-    if (!destino) {
-      return
-    }
-
+  private pintarBoton(destino: HTMLElement, clientId: string): void {
     google.accounts.id.initialize({
       client_id: clientId,
       callback: (respuesta) => void this.entrar(respuesta.credential),

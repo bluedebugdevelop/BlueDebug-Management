@@ -1,230 +1,355 @@
 # Puesta en marcha
 
-De un repositorio recién clonado a un panel desplegado y funcionando.
+De un repositorio recién clonado a un panel desplegado y operativo. Seis
+credenciales, dos entornos y una comprobación después de cada paso, para que
+cuando algo falle sepas exactamente cuál fue el último punto en el que todo iba
+bien.
 
-El orden importa: primero se consiguen las credenciales, luego se prueba en local
-—donde equivocarse no cuesta nada— y solo al final se despliega. Cada paso dice
-cómo comprobar que ha salido bien antes de pasar al siguiente.
-
-Cuando algo falla, salta al final: **Problemas típicos** cubre los cuatro que se
-dan de verdad.
+Cada paso acaba con una **comprobación**. Hazla antes de pasar al siguiente: es lo
+que convierte un «no funciona» al final de todo en un «falla en el paso 3», que es
+un problema mucho más pequeño.
 
 ---
 
-## Parte 1 · Las credenciales
+## 00 · Antes de empezar
 
-Son seis. Solo la primera y la segunda son imprescindibles para entrar; las demás
-encienden cada aplicación por separado, y el panel funciona perfectamente sin
-ellas —las apps sin credenciales aparecen apagadas con su motivo escrito.
+Vas a moverte por cinco consolas. Ábrelas ahora en pestañas separadas:
 
-### 1.1 · Acceso con Google (imprescindible)
+- [Google Cloud → Credenciales](https://console.cloud.google.com/apis/credentials) — el acceso al panel
+- [Railway](https://railway.app/dashboard) — la base de datos de VBStats, y donde vivirá el panel
+- [Stripe → Claves de API](https://dashboard.stripe.com/apikeys) — los ingresos
+- [Firebase](https://console.firebase.google.com/) — dos proyectos: el de VBStats y `cv-oviedo`
+- [Render](https://dashboard.render.com/) — el backend de VBStats, para copiar una credencial que ya existe
 
-Ya tienes el client id creado:
+Y una terminal. Las órdenes están en dos sabores, **Git Bash** y **PowerShell**;
+las dos producen exactamente el mismo resultado.
+
+---
+
+# Parte 1 · Reunir las credenciales
+
+## 01 · Acceso con Google — **imprescindible**
+
+El client id ya existe:
 
 ```
 483023567899-9atrekath4fnmtbvkel4ntfhlqame57j.apps.googleusercontent.com
 ```
 
-Falta asegurarse de dos cosas en la
-[consola de Google Cloud](https://console.cloud.google.com/apis/credentials):
+Falta autorizar *desde dónde* se usa y *quién* puede iniciar sesión. Son dos
+pantallas distintas y las dos hacen falta.
 
-**a) Orígenes autorizados.** Entra en *Credenciales → tu ID de cliente OAuth* y
-comprueba que en **Orígenes autorizados de JavaScript** están:
+### a) Autorizar los orígenes
 
-```
-http://localhost:4200
-http://localhost:8080
-```
+1. Abre [console.cloud.google.com/apis/credentials](https://console.cloud.google.com/apis/credentials).
+2. Arriba a la izquierda, elige el proyecto que contiene ese client id.
+3. En **ID de clientes de OAuth 2.0**, haz clic en el nombre de tu cliente web.
+4. En **Orígenes autorizados de JavaScript**, añade con *+ Añadir URI*:
+   - `http://localhost:4200`
+   - `http://localhost:8080`
+5. **Guardar**. El dominio de Railway se añade en el paso 08, cuando exista.
 
-Y, cuando tengas el dominio de Railway, también ese (Parte 3). No hace falta URI
-de redirección: el acceso va con Google Identity Services, que devuelve el token
-al navegador sin redirigir.
+> **Sin barra final y con el puerto.** Un origen es esquema + dominio + puerto y
+> nada más. `http://localhost:8080/` con barra, o `localhost:8080` sin esquema, no
+> valen. Y **no hace falta URI de redirección**: el panel usa Google Identity
+> Services, que devuelve el token al navegador sin redirigir.
 
-**b) La pantalla de consentimiento.** Esto es lo que más despista, así que
-míralo aunque parezca que no hace falta. En *APIs y servicios → Pantalla de
-consentimiento de OAuth*:
+### b) Autorizar a la persona
 
-- Si el **estado de publicación** es **«En pruebas»**, solo pueden iniciar sesión
-  las cuentas que estén en la lista de **usuarios de prueba**. Añade ahí
-  `bluedebug.develop@gmail.com` (y cualquier otro correo que vayas a autorizar).
-- La alternativa es pulsar **Publicar aplicación**. Para un panel interno no hace
-  falta, y publicar acaba pidiendo verificación de Google si algún día añades
-  permisos sensibles. Con usuarios de prueba vas sobrado.
+Este es el paso que más se olvida y el que peor síntoma tiene.
 
-Sin esto, el botón de Google se pinta, lo pulsas, y no pasa nada.
+1. Ve a [la pantalla de consentimiento de OAuth](https://console.cloud.google.com/apis/credentials/consent).
+   En consolas recientes aparece como **Google Auth Platform → Público**: es la
+   misma pantalla con otro nombre.
+2. Mira el **estado de publicación**. Si dice **«En pruebas»** (*Testing*), solo
+   entran las cuentas de la lista de usuarios de prueba.
+3. En **Usuarios de prueba** → *+ Add users*, añade `bluedebug.develop@gmail.com`
+   y cualquier otro correo que vayas a autorizar.
+4. Guardar.
 
-### 1.2 · El secreto de sesión (imprescindible)
+Publicar la aplicación es la alternativa, pero para un panel interno no compensa:
+te mete en el circuito de verificación de Google en cuanto añadas permisos
+sensibles.
 
-Con lo que se firma la cookie. Genera uno nuevo **para producción**, distinto del
-que uses en local:
+| | |
+|---|---|
+| **Variable** | `BLUEDEBUG_GOOGLE_CLIENT_ID` |
+| **Dónde** | Local y Railway, el mismo valor |
+| **¿Secreto?** | No. Viaja al navegador; está pensado para ser público |
+
+---
+
+## 02 · El secreto de sesión — **imprescindible**
+
+Necesitas **dos valores distintos**: uno para local y otro para producción. Si el
+de local se filtrara, con él se pueden fabricar sesiones válidas de administrador
+en el panel desplegado.
+
+**Git Bash**
 
 ```bash
 openssl rand -base64 48
 ```
 
-Si falta, el panel arranca igualmente pero con un secreto aleatorio distinto en
-cada reinicio, y eso echa fuera la sesión en cada despliegue.
+**PowerShell**
 
-### 1.3 · La base de datos de VBStats
-
-Es la que enciende casi todo el conector: cuentas, planes, altas, partidos,
-dispositivos y el historial de avisos.
-
-1. Entra en el proyecto de **Railway donde vive el MySQL de VBStats**.
-2. Servicio **MySQL → Variables**.
-3. Copia el valor de **`MYSQL_PUBLIC_URL`** entero, tal cual, con el
-   `mysql://usuario:clave@host:puerto/base`.
-
-El panel entiende ese formato directamente y lo traduce a JDBC él solo, así que
-no hay que trocearlo ni reescribirlo.
-
-> **Si acabas desplegando el panel en el mismo proyecto de Railway que el MySQL**,
-> puedes usar `MYSQL_URL` (la privada) en vez de la pública: no sale a internet y
-> Railway no te cobra el tráfico. Si van en proyectos distintos —lo normal—, tiene
-> que ser la pública.
-
-### 1.4 · Stripe (los ingresos de VBStats)
-
-En el [dashboard de Stripe](https://dashboard.stripe.com/apikeys), con el modo
-**Live** activado (arriba a la derecha):
-
-1. *Desarrolladores → Claves de API → **Crear clave restringida***.
-2. Ponle de nombre `BlueDebug Management (lectura)`.
-3. De toda la lista de permisos, activa **solo** este:
-   - **Charges** → `Read`
-4. Crear, y copia la clave (`rk_live_...`). Solo se enseña una vez.
-
-Que sea restringida y de solo lectura no es una formalidad: el panel únicamente
-lista cobros, y una clave secreta completa en un servidor más es una superficie de
-riesgo que no compensa.
-
-> **Ojo con lo que esta cifra NO incluye.** Las compras hechas dentro de la app de
-> iPhone las cobra Apple y no pasan por Stripe. El panel las cuenta como
-> suscriptores —la base de datos guarda su transacción de Apple— pero su importe
-> no aparece en la facturación. No es un fallo: es que ese dinero está en App
-> Store Connect, que sería otra integración entera.
-
-### 1.5 · Firebase de VBStats (las notificaciones)
-
-Aquí no hay que crear nada: **usa exactamente el mismo valor que ya tiene el
-backend de VBStats**. Así te aseguras de que es el proyecto correcto y de que los
-avisos salen igual que los suyos.
-
-1. Ve al servicio del backend de VBStats en Render → **Environment**.
-2. Copia el valor de **`FIREBASE_SERVICE_ACCOUNT_BASE64`**.
-
-Si no lo tienes a mano, se regenera desde la consola de Firebase del proyecto de
-VBStats → *Configuración del proyecto → Cuentas de servicio → Generar nueva clave
-privada*, y se codifica:
-
-```bash
-base64 -w0 clave-descargada.json
+```powershell
+$b = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+[Convert]::ToBase64String($b)
 ```
 
-(En macOS el comando es `base64 -i clave-descargada.json | tr -d '\n'`.)
+Ejecútalo dos veces y guarda las dos cadenas. Salen de 64 caracteres, por encima
+del mínimo de 32 que exige la firma.
 
-### 1.6 · Firebase del CV Oviedo
+> **Si no lo pones**, el panel arranca igual pero genera uno al azar en cada
+> arranque, y tu sesión se cae en cada despliegue.
 
-El proyecto es **`cv-oviedo`**. Aquí sí hay que generar una clave:
-
-1. [Consola de Firebase](https://console.firebase.google.com/) → proyecto
-   **cv-oviedo**.
-2. *Configuración del proyecto (la rueda) → **Cuentas de servicio***.
-3. **Generar nueva clave privada** → descarga un `.json`.
-4. Codifícalo:
-
-```bash
-base64 -w0 cv-oviedo-firebase-adminsdk-xxxxx.json
-```
-
-Esa cadena larga es el valor de la variable.
-
-**Borra el `.json` descargado en cuanto lo hayas codificado.** Esa clave da acceso
-completo a Firestore y a las cuentas del club, y suele quedarse olvidada en la
-carpeta de Descargas.
-
-La cuenta de servicio por defecto de Firebase ya trae los permisos que hacen
-falta: leer Firestore y listar usuarios de Authentication.
+| | |
+|---|---|
+| **Variable** | `BLUEDEBUG_SECRETO` |
+| **Dónde** | Un valor en `api/.env`, otro distinto en Railway |
+| **¿Secreto?** | **Sí, de los importantes.** Quien lo tenga se fabrica una sesión de admin sin pasar por Google |
 
 ---
 
-## Parte 2 · Probar en local
+## 03 · La base de datos de VBStats
 
-Antes de desplegar, comprueba que con esas credenciales el panel enciende las dos
-apps. Es mucho más rápido depurar aquí.
+1. En [Railway](https://railway.app/dashboard), abre el proyecto donde vive el
+   **MySQL de VBStats**.
+2. Haz clic en el servicio **MySQL** (el de la base de datos, no el backend).
+3. Pestaña **Variables**.
+4. Copia **`MYSQL_PUBLIC_URL`** entera.
 
-Edita `api/.env` (ya existe; no va al repositorio) y rellena lo que has reunido:
+La forma que tiene:
+
+```
+mysql://root:TU_CLAVE@interchange.proxy.rlwy.net:41234/railway
+```
+
+> **Pública, no privada.** `MYSQL_URL` solo se ve desde dentro de su propio
+> proyecto de Railway; `MYSQL_PUBLIC_URL` es la que funciona desde fuera. Como el
+> panel irá en otro proyecto, necesitas la pública. Coger la privada da un «la
+> base de datos no responde» que parece un problema de credenciales y no lo es.
+
+> **No la «limpies».** Si la contraseña tiene símbolos vienen codificados en la
+> URL (`%40` por una arroba, etc.). El panel los descodifica solo; reescribirla a
+> mano la rompe.
+
+Con esto se encienden las cuentas y sus planes, las altas por día, los partidos,
+los dispositivos, el historial de avisos y el borrado de cuentas.
+
+> **Sobre tocar producción.** El panel abre tres conexiones **de solo lectura**
+> para sus consultas y una cuarta, aparte, para lo único que escribe: la fila del
+> historial al mandar un aviso y los borrados que pidas. El backend de VBStats usa
+> un pool de diez contra el mismo servidor, así que no le quitas sitio.
+
+| | |
+|---|---|
+| **Variable** | `BLUEDEBUG_VBSTATS_URL` |
+| **¿Secreto?** | **Sí.** Lleva usuario y contraseña de producción |
+| **Sin ella** | VBStats sale apagada; el resto del panel funciona |
+
+---
+
+## 04 · Stripe — opcional
+
+1. Abre [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys).
+2. **Desactiva el modo de pruebas** (interruptor arriba a la derecha). Es el error
+   más caro: con *Test mode* puesto, la clave solo ve cobros de prueba y el panel
+   enseñará cero euros sin dar ningún error.
+3. **+ Crear clave restringida**.
+4. Nómbrala `BlueDebug Management (lectura)`.
+5. De toda la lista, deja todo en **None** y cambia **uno solo**:
+   **Charges → Read**.
+6. **Crear clave** → **Revelar** → copiar.
+
+Forma: `rk_live_51N...`
+
+> **Solo se enseña una vez.** Si la pierdes se crea otra, pero pégala antes de
+> cerrar la pestaña.
+
+**Por qué restringida y solo con `Charges: Read`**: el panel únicamente lista
+cobros. No crea suscripciones, no reembolsa, no toca clientes.
+
+> **Lo que estas cifras nunca incluirán.** Las compras dentro de la app de iPhone
+> las cobra Apple y no pasan por Stripe. El panel **sí** cuenta a esa gente como
+> suscriptores —la base de datos guarda su `apple_original_transaction_id`— pero su
+> importe no aparece. Ese dinero está en App Store Connect, que sería otra
+> integración entera.
+
+| | |
+|---|---|
+| **Variable** | `BLUEDEBUG_VBSTATS_STRIPE` |
+| **Sin ella** | No aparece la pestaña «Ingresos»; el resto de VBStats funciona |
+
+---
+
+## 05 · Firebase de VBStats — opcional
+
+**Camino corto: copiar la que ya existe.** El backend de VBStats ya manda
+notificaciones, así que ya la tiene. Reusarla garantiza que es el proyecto
+correcto.
+
+1. En [Render](https://dashboard.render.com/), abre el servicio del backend de VBStats.
+2. Pestaña **Environment**.
+3. Revela y copia `FIREBASE_SERVICE_ACCOUNT_BASE64`.
+
+**Camino largo: generarla de nuevo.**
+
+1. [Consola de Firebase](https://console.firebase.google.com/) → proyecto de VBStats.
+2. Rueda dentada → **Configuración del proyecto** → pestaña **Cuentas de servicio**.
+3. **Generar nueva clave privada** → **Generar clave**. Se descarga un `.json`.
+4. Codifícalo:
+
+**Git Bash**
 
 ```bash
+base64 -w0 ruta/al/fichero.json
+```
+
+**PowerShell**
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\ruta\al\fichero.json"))
+```
+
+> **Comprobación del base64.** La cadena tiene que ser **una sola línea** de varios
+> miles de caracteres y **empezar por `eyJ`**. Eso no es casualidad: `eyJ` es cómo
+> se codifica `{"` en base64, o sea, el principio del JSON. Si no empieza así, has
+> codificado otra cosa.
+
+> **Borra el JSON descargado** en cuanto lo pegues. Da acceso completo al proyecto
+> de Firebase y es el despiste más habitual con las cuentas de servicio.
+
+> **Cuidado al probar los envíos.** No hay modo de pruebas. Estés en local o en
+> producción, los tokens salen de la base de datos real y el aviso llega a los
+> móviles de tus usuarios.
+
+| | |
+|---|---|
+| **Variable** | `BLUEDEBUG_VBSTATS_FIREBASE` |
+| **¿Secreto?** | **Sí, de los máximos** |
+| **Sin ella** | No se pueden mandar notificaciones; los datos y gráficas funcionan |
+
+---
+
+## 06 · Firebase del CV Oviedo
+
+Aquí no hay nada que copiar: la app del club habla con Firestore directamente
+desde el móvil, sin servidor, así que el panel es el primero que necesita una
+cuenta de servicio. El proyecto es `cv-oviedo`.
+
+1. Abre [la pestaña de cuentas de servicio de cv-oviedo](https://console.firebase.google.com/project/cv-oviedo/settings/serviceaccounts/adminsdk).
+2. Comprueba arriba que el proyecto es **cv-oviedo**.
+3. **Generar nueva clave privada** → **Generar clave**.
+4. Se descarga `cv-oviedo-firebase-adminsdk-xxxxx.json`.
+5. Codifícalo con el comando del paso 05.
+6. **Borra el JSON.**
+
+No hay que asignar permisos a mano: la cuenta de servicio por defecto ya lee
+Firestore y lista las cuentas de Authentication, que es lo único que el panel
+necesita salvo cuando das una baja.
+
+Con esto se encienden las fichas con sus roles y equipos, las plantillas, el
+**último acceso real** de cada persona (sale de Firebase Auth, porque Firestore no
+lo guarda) y los avisos por Expo Push.
+
+> **Por qué aparecen «registrados sin ficha».** En el club, tener cuenta en
+> Firebase no es ser del club: lo que da acceso es tener ficha en `usuarios/` con
+> `activo: true`, y esas las crea un administrador. El panel cruza las dos listas y
+> te enseña cuánta gente se registró y se quedó esperando. Si ese número sube, hay
+> alguien sin atender.
+
+| | |
+|---|---|
+| **Variable** | `BLUEDEBUG_CVO_FIREBASE` |
+| **¿Secreto?** | **Sí, de los máximos** |
+| **Sin ella** | CV Oviedo sale apagada |
+
+---
+
+# Parte 2 · Montarlo
+
+## 07 · Probar en local
+
+Abre `api/.env` —ya existe y está excluido del repositorio— y déjalo así:
+
+```bash
+# --- acceso ---
 BLUEDEBUG_GOOGLE_CLIENT_ID=483023567899-9atrekath4fnmtbvkel4ntfhlqame57j.apps.googleusercontent.com
-BLUEDEBUG_SECRETO=<uno cualquiera, local>
+BLUEDEBUG_SECRETO=<el secreto de LOCAL del paso 02>
 BLUEDEBUG_PERMITIDOS=bluedebug.develop@gmail.com
 BLUEDEBUG_COOKIE_SEGURA=false
 BLUEDEBUG_ORIGENES_WEB=http://localhost:4200
 
-BLUEDEBUG_VBSTATS_URL=<MYSQL_PUBLIC_URL de Railway>
-BLUEDEBUG_VBSTATS_STRIPE=<rk_live_...>
-BLUEDEBUG_VBSTATS_FIREBASE=<base64 de VBStats>
-BLUEDEBUG_CVO_FIREBASE=<base64 de cv-oviedo>
+# --- VBStats ---
+BLUEDEBUG_VBSTATS_URL=<MYSQL_PUBLIC_URL del paso 03>
+BLUEDEBUG_VBSTATS_STRIPE=<rk_live_... del paso 04>
+BLUEDEBUG_VBSTATS_FIREBASE=<base64 del paso 05>
+
+# --- CV Oviedo ---
+BLUEDEBUG_CVO_FIREBASE=<base64 del paso 06>
 ```
 
-`BLUEDEBUG_COOKIE_SEGURA` **tiene que ser `false` en local**: sobre http, el
-navegador descarta una cookie marcada como `Secure` y el acceso entra en bucle.
+> **En local, `COOKIE_SEGURA` va en `false`.** Sobre `http` el navegador descarta
+> cualquier cookie marcada como `Secure`: entras con Google, el panel te devuelve
+> al acceso, y vuelta a empezar sin ningún mensaje de error. En producción es al
+> revés.
 
 Arranca:
 
 ```bash
-cd api && ./mvnw spring-boot:run
+cd api
+./mvnw spring-boot:run
 ```
 
-Y comprueba desde otra terminal:
+Busca esta línea en el arranque. Si no aparece, el fichero no se está leyendo:
+
+```
+Configuración local leída de C:\Projects\BlueDebugManagement\api\.env
+```
+
+**Comprobación**, desde otra terminal:
 
 ```bash
 curl http://localhost:8080/api/salud
 ```
-
-Lo que tiene que salir cuando está todo bien:
 
 ```json
 {"ok":true,"apps":2,"disponibles":2}
 ```
 
 **`disponibles` es el número que importa.** Si es menor que `apps`, alguna
-credencial no vale. Abre `http://localhost:8080`, entra con Google y mira
-**Ajustes**: cada app apagada dice ahí qué le falta.
+credencial no vale: entra en el panel y abre **Ajustes**, donde cada app apagada
+dice exactamente qué le falta.
 
-Entra y recorre las cuatro pantallas: Panel, Usuarios, cada aplicación y
-Actividad. Si las gráficas tienen datos y la tabla de usuarios lista cuentas
-reales, las credenciales son correctas.
-
-> **No pruebes el envío de notificaciones desde local a la ligera.** Estás contra
-> la base de datos y los dispositivos de PRODUCCIÓN: si pulsas «Enviar», les suena
-> el móvil a los usuarios de verdad. No hay modo de pruebas.
+Luego abre `localhost:8080`, entra con Google y recorre Panel, Usuarios, cada
+aplicación y Actividad.
 
 ---
 
-## Parte 3 · Desplegar en Railway
+## 08 · Desplegar en Railway
 
-### 3.1 · Crear el servicio
+### a) Crear el servicio
 
-1. [Railway](https://railway.app) → **New Project** → **Deploy from GitHub repo**.
-2. Elige **bluedebugdevelop/BlueDebug-Management**. Si no aparece, en
-   *Configure GitHub App* dale acceso a la organización.
-3. Railway lee `railway.json`, ve que el builder es `DOCKERFILE` y construye solo.
-   **No configures comando de arranque ni puerto**: el `Dockerfile` ya lo resuelve
-   y la aplicación lee el `PORT` que Railway inyecta.
+1. **New Project** → **Deploy from GitHub repo**.
+2. Elige **bluedebugdevelop/BlueDebug-Management**. Si no aparece, pulsa
+   *Configure GitHub App* y da acceso a la organización.
+3. Railway lee `railway.json`, ve el builder `DOCKERFILE` y construye solo.
+   **No configures comando de arranque ni puerto**: el `Dockerfile` lo resuelve y
+   la aplicación lee el `PORT` que Railway inyecta.
 
-El primer build tarda unos minutos: compila Angular con Node y luego el backend
-con Maven. Los siguientes van más rápido porque las capas de dependencias se
-reutilizan.
+El primer build tarda varios minutos: compila Angular con Node y luego el backend
+con Maven. Los siguientes reutilizan capas y van más rápido.
 
-### 3.2 · Las variables
+### b) Las variables
 
-*Settings → Variables → **Raw Editor***, y pega esto de una vez, sustituyendo:
+*Variables* → **Raw Editor**, y pega:
 
 ```bash
 BLUEDEBUG_GOOGLE_CLIENT_ID=483023567899-9atrekath4fnmtbvkel4ntfhlqame57j.apps.googleusercontent.com
-BLUEDEBUG_SECRETO=<el generado en 1.2, distinto del de local>
+BLUEDEBUG_SECRETO=<el secreto de PRODUCCIÓN, distinto del de local>
 BLUEDEBUG_PERMITIDOS=bluedebug.develop@gmail.com
 BLUEDEBUG_COOKIE_SEGURA=true
 BLUEDEBUG_HORAS_SESION=12
@@ -234,93 +359,130 @@ BLUEDEBUG_VBSTATS_FIREBASE=<base64 de VBStats>
 BLUEDEBUG_CVO_FIREBASE=<base64 de cv-oviedo>
 ```
 
-Dos diferencias con local, y las dos importan:
+Dos diferencias con local, las dos deliberadas:
 
-- **`BLUEDEBUG_COOKIE_SEGURA=true`.** En producción hay https, y sin esto la cookie
-  de sesión viajaría sin la marca `Secure`.
-- **No pongas `BLUEDEBUG_ORIGENES_WEB`.** En producción el mismo servidor sirve el
-  Angular y la API, así que no hay petición cruzada y CORS sobra. Dejarlo vacío es
-  lo correcto y lo más cerrado.
+- **`BLUEDEBUG_COOKIE_SEGURA=true`** — en producción hay `https`, y sin esto la
+  cookie viajaría sin la marca `Secure`.
+- **No pongas `BLUEDEBUG_ORIGENES_WEB`** — el mismo servidor sirve el Angular y la
+  API, así que no hay petición cruzada y CORS sobra.
 
-### 3.3 · El dominio
+### c) El dominio
 
-*Settings → Networking → **Generate Domain***. Te da algo como
-`bluedebug-management-production.up.railway.app`.
+1. **Settings** → **Networking** → **Generate Domain**.
+2. Copia el dominio que te dé.
+3. Vuelve a Google Cloud (paso 01) y añádelo a **Orígenes autorizados de
+   JavaScript**, con `https://` y sin barra final.
+4. Guardar. Google puede tardar unos minutos.
 
-**Cópialo y vuelve a la consola de Google Cloud** (paso 1.1) para añadirlo a
-**Orígenes autorizados de JavaScript**, con `https://` y sin barra final:
-
-```
-https://bluedebug-management-production.up.railway.app
-```
-
-Google tarda a veces unos minutos en aplicar el cambio.
-
-### 3.4 · Comprobar que ha subido bien
+**Comprobación:**
 
 ```bash
 curl https://TU-DOMINIO.up.railway.app/api/salud
 ```
 
-Tiene que responder `{"ok":true,"apps":2,"disponibles":2}`.
-
-Railway usa esa misma ruta como healthcheck (está en `railway.json`), así que si
-el despliegue se queda en «unhealthy», el problema está en el arranque: mira los
-**Deploy Logs**.
-
-Luego abre el dominio en el navegador, entra con Google y repasa que las dos apps
-salen en verde en el menú lateral.
+Railway usa esa misma ruta como healthcheck (`railway.json`), así que si el
+despliegue se queda en *unhealthy* el fallo está en el arranque: mira los **Deploy
+Logs**.
 
 ---
 
-## Parte 4 · Detalles que conviene saber
+## 09 · Comprobación final
 
-**Quién puede entrar.** `BLUEDEBUG_PERMITIDOS` admite varios correos separados por
-comas. Se comprueba en **cada petición**, no solo al iniciar sesión: quitar un
-correo y reiniciar el servicio echa fuera a esa persona al momento, sin esperar a
-que caduque su sesión.
+1. `/api/salud` responde `disponibles: 2` en el dominio de Railway.
+2. El dominio abre la pantalla de acceso con el botón **Continuar con Google**.
+3. Entras con `bluedebug.develop@gmail.com` y llegas al panel.
+4. En el menú lateral, las dos apps tienen el punto **verde**.
+5. En **VBStats**: Usuarios lista cuentas reales e Ingresos enseña cifras.
+6. En **CV Oviedo**: salen las fichas, y en Detalle los equipos.
+7. Cierras sesión y te devuelve al acceso.
 
-**A quién se le atribuyen los avisos de VBStats.** Cuando mandas una notificación,
-el panel la apunta en el historial que la propia app enseña. Ese historial exige
-un id de usuario de VBStats, así que el panel busca tu correo entre sus cuentas;
-si no lo encuentra, usa el primer superadmin. Si `bluedebug.develop@gmail.com`
-tiene cuenta en VBStats (y está en su `SUPERADMIN_EMAILS`), los avisos saldrán a
-tu nombre. Si no hubiera ningún superadmin, el aviso se envía igual pero no queda
-registrado, y el resultado en pantalla te lo dice.
-
-**Actualizar el panel.** Cada `git push` a `main` dispara un despliegue nuevo en
-Railway. No hay más pasos.
-
-**Añadir una tercera aplicación.** Está en el README: una clase en
-`conectores/` anotada con `@Component` que implemente `ConectorApp`. Aparece sola
-en el menú, con sus pestañas y sus botones, sin tocar Angular.
+> **Lo que NO conviene «probar»:** mandar una notificación. Le suena el móvil a
+> toda la audiencia que elijas y no se puede deshacer. Si necesitas comprobarlo, en
+> CV Oviedo puedes dirigirlo a un solo equipo, que es el destinatario más estrecho
+> que existe en el panel.
 
 ---
 
-## Problemas típicos
+# Referencia · todas las variables
 
-**El botón de Google aparece pero al pulsarlo no pasa nada.**
-La pantalla de consentimiento está «En pruebas» y tu correo no está en los
-usuarios de prueba. Paso 1.1.b.
+| Variable | ¿Obligatoria? | De dónde sale | Qué pasa si falta |
+|---|---|---|---|
+| `BLUEDEBUG_GOOGLE_CLIENT_ID` | **Sí** | Google Cloud → Credenciales | No se puede entrar |
+| `BLUEDEBUG_SECRETO` | **Sí** | `openssl rand -base64 48` | Se genera al azar; la sesión se cae en cada reinicio |
+| `BLUEDEBUG_PERMITIDOS` | **Sí** | Lo escribes tú, correos por comas | En blanco, no entra nadie |
+| `BLUEDEBUG_COOKIE_SEGURA` | **Sí** | `false` local, `true` Railway | Mal puesta: bucle de acceso sin mensaje |
+| `BLUEDEBUG_ORIGENES_WEB` | No | Solo local: `http://localhost:4200` | Nada. En producción debe ir vacía |
+| `BLUEDEBUG_HORAS_SESION` | No | Lo eliges tú; por defecto 12 | Nada |
+| `BLUEDEBUG_VBSTATS_URL` | No | Railway → MySQL → `MYSQL_PUBLIC_URL` | VBStats sale apagada |
+| `BLUEDEBUG_VBSTATS_STRIPE` | No | Stripe → restringida, `Charges: Read` | Sin pestaña de ingresos |
+| `BLUEDEBUG_VBSTATS_FIREBASE` | No | Render → `FIREBASE_SERVICE_ACCOUNT_BASE64` | No se pueden mandar notificaciones |
+| `BLUEDEBUG_CVO_FIREBASE` | No | Firebase → cv-oviedo → Cuentas de servicio | CV Oviedo sale apagada |
+| `BLUEDEBUG_CACHE_SEGUNDOS` | No | Lo eliges tú; por defecto 60 | Nada |
+
+---
+
+# Mantenimiento
+
+**Autorizar a otra persona.** Añade su correo separado por comas:
+
+```bash
+BLUEDEBUG_PERMITIDOS=bluedebug.develop@gmail.com,otra@ejemplo.com
+```
+
+Y añádela también como **usuario de prueba** en la pantalla de consentimiento de
+Google (paso 01b), o el botón no le hará nada. La lista se comprueba en **cada
+petición**: quitar un correo y reiniciar echa a esa persona al momento.
+
+**Echar a todo el mundo ahora mismo.** Cambia `BLUEDEBUG_SECRETO` y redespliega:
+todas las sesiones dejan de valer al instante.
+
+**Actualizar el panel.** Cada `git push` a `main` dispara un despliegue.
+
+**Ver qué se ha hecho.** La pantalla de Actividad vive en memoria y se vacía al
+reiniciar. Lo que perdura está en los **Deploy Logs** de Railway: busca las líneas
+que empiezan por `AUDITORÍA:`.
+
+**A quién se atribuyen los avisos de VBStats.** El panel los apunta en el historial
+que la propia app enseña, y eso exige un id de usuario de VBStats: busca tu correo
+entre sus cuentas y, si no lo encuentra, usa el primer superadmin. Si
+`bluedebug.develop@gmail.com` tiene cuenta y está en su `SUPERADMIN_EMAILS`, los
+avisos salen a tu nombre. Si no hubiera ningún superadmin, el aviso se manda igual
+pero sin registrar, y el resultado en pantalla lo dice.
+
+**Añadir una tercera aplicación.** Una clase en `conectores/` anotada con
+`@Component` que implemente `ConectorApp`. Aparece sola en el menú, sin tocar
+Angular. Lo detalla el [README](../README.md).
+
+---
+
+# Problemas típicos
+
+**El botón de Google aparece, lo pulso y no pasa nada.**
+La pantalla de consentimiento está «En pruebas» y tu correo no está en los usuarios
+de prueba → paso 01b. Es, con diferencia, el fallo más común.
 
 **«Esta cuenta no tiene acceso al panel».**
-El acceso con Google funcionó; es la lista blanca la que te rechaza. Revisa
-`BLUEDEBUG_PERMITIDOS` y que el correo con el que entras sea exactamente ese. Las
-mayúsculas y los espacios no importan —el panel los normaliza—, pero un correo
-distinto sí.
+Google te autenticó bien; es la lista blanca la que te rechaza. Revisa
+`BLUEDEBUG_PERMITIDOS`. Las mayúsculas y los espacios no importan —el panel los
+normaliza— pero una cuenta distinta sí.
 
-**Entras, te redirige al acceso, y vuelta a empezar.**
-La cookie de sesión no se está guardando. En local es casi siempre
-`BLUEDEBUG_COOKIE_SEGURA=true` sobre http: ponlo a `false`. En producción es lo
-contrario, y suele significar que estás entrando por http en vez de https.
+**Entro, me devuelve al acceso, y vuelta a empezar.**
+La cookie no se guarda. En local es casi siempre `BLUEDEBUG_COOKIE_SEGURA=true`
+sobre `http`; en producción, entrar por `http` en vez de `https`.
 
-**VBStats sale apagada con «la base de datos no responde».**
-La URL es correcta en su forma pero la conexión falla. Comprueba, por este orden:
-que has copiado `MYSQL_PUBLIC_URL` y no `MYSQL_URL` (la privada no se ve desde
-fuera de su proyecto), que el servicio MySQL está levantado en Railway, y que la
-contraseña no se ha regenerado. Los **Deploy Logs** del panel traen el motivo real.
+**VBStats apagada: «la base de datos no responde».**
+Por este orden: que sea `MYSQL_PUBLIC_URL` y no `MYSQL_URL`; que el servicio MySQL
+esté levantado; que la contraseña no se haya regenerado. Los Deploy Logs traen el
+motivo real.
+
+**Los ingresos salen a cero pero sé que hay cobros.**
+Comprueba que la clave empieza por `rk_live_` y no `rk_test_`. La otra posibilidad
+es que sean cobros de la App Store, que nunca aparecerán aquí.
 
 **El primer build en Railway falla por memoria o tiempo.**
-Compilar Angular y Maven en el mismo contenedor es lo más pesado que hace este
-proyecto. Reintenta el despliegue: la segunda vez reutiliza las capas de
-dependencias y pasa sin problema.
+Compilar Angular y Maven en el mismo contenedor es lo más pesado del proyecto.
+Reintenta: la segunda vez reutiliza capas y pasa.
+
+**Una app sale apagada y no sé por qué.**
+No adivines: entra en **Ajustes**, donde cada app apagada tiene escrito su motivo
+concreto junto al nombre de la variable que le falta.

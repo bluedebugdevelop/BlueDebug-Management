@@ -8,6 +8,11 @@ suscripciones, ingresos de Stripe y notificaciones push) y la app del **CV
 Oviedo** (fichas del club, equipos, roles y avisos). Está pensado para que meter
 la tercera, la cuarta y la décima no sea rehacer nada.
 
+> **¿Montándolo por primera vez?** Ve a
+> **[docs/PUESTA-EN-MARCHA.md](docs/PUESTA-EN-MARCHA.md)**: lleva paso a paso de un
+> repositorio recién clonado a un panel desplegado, con de dónde sale cada
+> credencial y cómo comprobar cada paso antes de seguir.
+
 ```
 Spring Boot 3.4 (Java 17)  +  Angular 19  ->  un solo contenedor
 ```

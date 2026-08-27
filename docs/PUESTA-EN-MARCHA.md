@@ -214,10 +214,12 @@ base64 -w0 ruta/al/fichero.json
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\ruta\al\fichero.json"))
 ```
 
-> **Comprobación del base64.** La cadena tiene que ser **una sola línea** de varios
-> miles de caracteres y **empezar por `eyJ`**. Eso no es casualidad: `eyJ` es cómo
-> se codifica `{"` en base64, o sea, el principio del JSON. Si no empieza así, has
-> codificado otra cosa.
+> **Comprobación del base64.** La cadena tiene que ser **una sola línea** de unos
+> 3.100 caracteres y **empezar por `ewo` o por `eyJ`**. No es casualidad: son las
+> dos formas en que empieza un JSON codificado en base64 — `ewo` si el fichero
+> viene indentado (`{` y salto de línea, que es como los descarga Google) y `eyJ`
+> si viene en una sola línea (`{"`). Si empieza por otra cosa, has codificado algo
+> que no es el JSON.
 
 > **Borra el JSON descargado** en cuanto lo pegues. Da acceso completo al proyecto
 > de Firebase y es el despiste más habitual con las cuentas de servicio.

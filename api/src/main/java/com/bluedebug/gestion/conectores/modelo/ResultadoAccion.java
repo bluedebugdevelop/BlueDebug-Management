@@ -23,15 +23,31 @@ public record ResultadoAccion(boolean correcto, String mensaje, Map<String, Obje
 
     /** Constructor cómodo para ir apilando cifras sin montar el mapa a mano. */
     public static Builder correcta(String mensaje) {
-        return new Builder(mensaje);
+        return new Builder(mensaje, true);
+    }
+
+    /**
+     * Como {@link #correcta}, pero el resultado se marca como fallido.
+     *
+     * Existe para el caso que de otro modo se cuenta mal: una acción que se
+     * ejecuta entera y sin errores, pero que no consigue nada —un aviso que sale
+     * hacia nueve móviles y no llega a ninguno—. Eso no es un éxito, y pintarlo
+     * en verde con las cifras malas debajo es la forma más rápida de que nadie se
+     * fíe del panel. Lleva detalles igual, porque son justo los que explican por
+     * qué no salió.
+     */
+    public static Builder fallida(String mensaje) {
+        return new Builder(mensaje, false);
     }
 
     public static final class Builder {
         private final String mensaje;
+        private final boolean correcto;
         private final Map<String, Object> detalles = new LinkedHashMap<>();
 
-        private Builder(String mensaje) {
+        private Builder(String mensaje, boolean correcto) {
             this.mensaje = mensaje;
+            this.correcto = correcto;
         }
 
         public Builder con(String clave, Object valor) {
@@ -40,7 +56,7 @@ public record ResultadoAccion(boolean correcto, String mensaje, Map<String, Obje
         }
 
         public ResultadoAccion listo() {
-            return new ResultadoAccion(true, mensaje, Map.copyOf(detalles));
+            return new ResultadoAccion(correcto, mensaje, Map.copyOf(detalles));
         }
     }
 }

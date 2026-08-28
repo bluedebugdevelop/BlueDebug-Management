@@ -332,10 +332,17 @@ export class FormularioAccion {
     }
   }
 
-  /** Las cifras que devuelve la acción, con nombres que se leen. */
+  /**
+   * Las cifras que devuelve la acción, con nombres que se leen.
+   *
+   * Se enseñan también los ceros, al revés de como estaba antes. «Confirmados: 0»
+   * es justo el dato que hay que ver cuando un aviso no llega; esconderlo por ser
+   * cero dejaba en pantalla solo las cifras buenas y hacía parecer que todo había
+   * ido bien.
+   */
   protected detalles(resultado: ResultadoAccion): { clave: string; etiqueta: string; valor: string }[] {
     return Object.entries(resultado.detalles ?? {})
-      .filter(([, valor]) => typeof valor === 'number' && valor > 0)
+      .filter(([, valor]) => typeof valor === 'number')
       .map(([clave, valor]) => ({
         clave,
         etiqueta: ETIQUETAS[clave] ?? clave,
@@ -345,9 +352,13 @@ export class FormularioAccion {
 }
 
 const ETIQUETAS: Record<string, string> = {
-  entregados: 'Entregados',
-  fallidos: 'Fallidos',
   dispositivos: 'Dispositivos',
-  tokensLimpiados: 'Tokens caducados borrados',
-  tokensMuertos: 'Dispositivos sin la app',
+  // La distinción es la que importa: Expo acepta primero y entrega después, y
+  // solo lo segundo significa que a alguien le ha sonado el móvil.
+  confirmados: 'Entregados de verdad',
+  sinConfirmar: 'Sin confirmar todavía',
+  fallidos: 'Fallidos',
+  tokensLimpiados: 'Tokens muertos borrados',
+  // Los de VBStats, que van por FCM.
+  entregados: 'Entregados',
 }

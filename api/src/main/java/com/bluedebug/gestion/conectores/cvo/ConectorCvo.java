@@ -211,19 +211,45 @@ public class ConectorCvo implements ConectorApp {
 
         ServicioPushExpo.Envio envio = push.enviar(tokens, titulo, cuerpo);
 
+        // Los tokens que Expo da por muertos se borran de las fichas. Si no, cada
+        // reinstalación deja uno colgando para siempre y los recuentos mienten.
+        int limpiados = repositorio.limpiarTokens(envio.tokensMuertos());
+
         // El club no tiene tabla de historial como VBStats, así que la única traza
         // de esto es el log del servidor. Queda escrito con el correo de quien lo
         // mandó, que es lo mínimo exigible para una acción que le suena el móvil a
         // medio club.
-        log.info("AUDITORÍA: {} envió un aviso de CVO a '{}' ({} dispositivos, {} entregados)",
-                emailAdmin, destino, tokens.size(), envio.entregados());
+        log.info("AUDITORÍA: {} envió un aviso de CVO a '{}' ({} dispositivos, {} confirmados, motivos={})",
+                emailAdmin, destino, tokens.size(), envio.confirmados(), envio.motivos());
 
-        return ResultadoAccion.correcta("Aviso enviado")
-                .con("entregados", envio.entregados())
-                .con("fallidos", envio.fallidos())
+        // El mensaje dice lo que de verdad ha pasado, no lo que se ha intentado.
+        // «Aviso enviado» con seis fallos escondidos debajo es exactamente lo que
+        // hace que nadie se fíe del panel.
+        boolean fracaso = envio.confirmados() == 0 && envio.fallidos() > 0;
+
+        String mensaje;
+        if (fracaso) {
+            mensaje = "No llegó a ningún móvil";
+        } else if (envio.fallidos() > 0) {
+            mensaje = "Llegó a " + envio.confirmados() + " de " + tokens.size() + " dispositivos";
+        } else if (envio.sinConfirmar() > 0) {
+            mensaje = "Aceptado por Expo; " + envio.sinConfirmar() + " sin confirmar todavía";
+        } else {
+            mensaje = "Entregado en " + envio.confirmados() + " dispositivos";
+        }
+
+        var resultado = (fracaso ? ResultadoAccion.fallida(mensaje) : ResultadoAccion.correcta(mensaje))
                 .con("dispositivos", tokens.size())
-                .con("tokensMuertos", envio.tokensMuertos().size())
-                .listo();
+                .con("confirmados", envio.confirmados())
+                .con("sinConfirmar", envio.sinConfirmar())
+                .con("fallidos", envio.fallidos())
+                .con("tokensLimpiados", limpiados);
+
+        // Los motivos son lo único que explica un envío que no llega. Van con su
+        // nombre tal cual lo da Expo, que es lo que se puede buscar.
+        envio.motivos().forEach((error, cuantos) -> resultado.con("motivo: " + error, cuantos));
+
+        return resultado.listo();
     }
 
     private ResultadoAccion cambiarAlta(Map<String, Object> parametros, String emailAdmin) {

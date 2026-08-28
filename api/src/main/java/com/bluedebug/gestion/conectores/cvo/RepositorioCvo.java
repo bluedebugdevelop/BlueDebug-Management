@@ -272,6 +272,48 @@ public class RepositorioCvo {
                 .get();
     }
 
+    /**
+     * Borra de las fichas los tokens que Expo da por muertos.
+     *
+     * Hace falta de verdad, no es limpieza cosmética. La app añade el token con
+     * {@code arrayUnion} cada vez que alguien entra, y nadie quita los viejos:
+     * cada reinstalación deja uno más colgando. Se ven fichas con seis tokens de
+     * un solo móvil, de los cuales cinco están muertos. Eso infla el recuento de
+     * «móviles con la app», hace que cada envío gaste intentos en aparatos que ya
+     * no existen, y —lo peor— disfraza el resultado: un envío que llega a una
+     * persona sale como «uno de seis», que parece un fallo y no lo es.
+     *
+     * @return cuántos se han borrado.
+     */
+    public int limpiarTokens(List<String> muertos) {
+        if (muertos == null || muertos.isEmpty() || fuente.firestore() == null) {
+            return 0;
+        }
+
+        java.util.Set<String> aBorrar = new java.util.HashSet<>(muertos);
+        int borrados = 0;
+
+        for (QueryDocumentSnapshot doc : documentos("usuarios")) {
+            List<String> suyos = lista(doc, "tokensPush").stream().filter(aBorrar::contains).toList();
+            if (suyos.isEmpty()) {
+                continue;
+            }
+            try {
+                doc.getReference()
+                        .update("tokensPush", com.google.cloud.firestore.FieldValue.arrayRemove(suyos.toArray()))
+                        .get();
+                borrados += suyos.size();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return borrados;
+            } catch (Exception e) {
+                log.warn("CVO: no se pudieron limpiar los tokens de {}: {}", doc.getId(), e.getMessage());
+            }
+        }
+
+        return borrados;
+    }
+
     public Map<String, Object> ficha(String uid) {
         try {
             DocumentSnapshot doc = fuente.firestore().collection("usuarios").document(uid).get().get();

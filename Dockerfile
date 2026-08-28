@@ -46,11 +46,32 @@ COPY --from=web /construccion/dist/ ./src/main/resources/static/
 RUN mvn -B -q -DskipTests package
 
 # --- 3. lo que se ejecuta -------------------------------------------------
-FROM eclipse-temurin:17-jre-alpine
+#
+# UBUNTU (glibc), NO ALPINE. Y esto no se cambia sin leer lo que viene:
+#
+# La imagen de Alpine es la mitad de grande y es lo primero que uno elige. Pero
+# Alpine no lleva glibc, lleva musl, y este proyecto carga bibliotecas NATIVAS:
+# gRPC —que es por donde habla el SDK de Firestore— trae dentro netty-tcnative,
+# un binario de TLS compilado contra glibc. Sobre musl, la JVM entera se cae con
+# un SIGSEGV en cuanto intenta cargarlo:
+#
+#   C  [libio_grpc_netty_shaded_netty_tcnative_linux_x86_64...so]
+#      netty_internal_tcnative_SSLContext_JNI_OnLoad
+#
+# Y lo peor es cuándo se manifiesta: la aplicación arranca perfectamente, sirve
+# durante unos segundos, y revienta al abrir la PRIMERA conexión TLS a Firestore.
+# Sin credenciales de CVO configuradas eso no llega a pasar nunca, así que el
+# contenedor parecía sano; el día que se configuran, entra en un ciclo de
+# arrancar y morir y el dominio devuelve 502 sin una sola excepción de Java en el
+# log, porque la caída es del proceso, no del programa.
+#
+# Cuesta unos 80 MB más de imagen. Los vale.
+FROM eclipse-temurin:17-jre-jammy
 
 # Nada de correr como root: si algún día se cuela una ejecución de código, que
 # sea con un usuario que no puede tocar el sistema de ficheros de la imagen.
-RUN addgroup -S panel && adduser -S panel -G panel
+# (Órdenes de Debian/Ubuntu; las de Alpine, `addgroup -S`, aquí no existen.)
+RUN groupadd --system panel && useradd --system --gid panel --create-home panel
 USER panel
 
 WORKDIR /app

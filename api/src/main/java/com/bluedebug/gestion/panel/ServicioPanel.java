@@ -36,18 +36,31 @@ public class ServicioPanel {
 
     private final RegistroConectores registro;
     private final ResumenesCacheados cache;
+    private final VigilanteEstado vigilante;
 
-    public ServicioPanel(RegistroConectores registro, ResumenesCacheados cache) {
+    public ServicioPanel(RegistroConectores registro, ResumenesCacheados cache, VigilanteEstado vigilante) {
         this.registro = registro;
         this.cache = cache;
+        this.vigilante = vigilante;
     }
 
     /** Una app en el menú: quién es y si responde. */
     public record AppEnMenu(DescriptorApp app, EstadoConector estado) {}
 
+    /**
+     * El menú lateral.
+     *
+     * El estado sale de la foto que toma {@link VigilanteEstado} en segundo plano,
+     * no de una sonda en caliente: si no, cada carga de pantalla abriría una
+     * conexión a MySQL y otra a Firestore solo para pintar dos puntos de color.
+     * Únicamente en los primeros segundos tras arrancar, cuando aún no hay foto,
+     * se mira en vivo — es una petición autenticada y con alguien esperando.
+     */
     public List<AppEnMenu> menu() {
         return registro.todos().stream()
-                .map(c -> new AppEnMenu(c.descriptor(), estadoSeguro(c)))
+                .map(c -> new AppEnMenu(
+                        c.descriptor(),
+                        vigilante.de(c.id()).orElseGet(() -> estadoSeguro(c))))
                 .toList();
     }
 

@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * BlueDebug Management: el panel desde el que se administran todas las
@@ -35,6 +36,9 @@ import org.springframework.cache.annotation.EnableCaching;
         UserDetailsServiceAutoConfiguration.class,
 })
 @EnableCaching
+// Para que VigilanteEstado pueda sondear las apps en segundo plano en vez de
+// hacerlo dentro del healthcheck. Ver el comentario de esa clase.
+@EnableScheduling
 public class GestionApplication {
 
     public static void main(String[] args) {

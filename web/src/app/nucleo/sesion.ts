@@ -69,10 +69,16 @@ export class Sesion {
     }
   }
 
-  /** Vuelve a pedir el estado de las apps, p. ej. tras cambiar credenciales. */
-  async cargarApps(): Promise<void> {
+  /**
+   * Vuelve a pedir el estado de las apps.
+   *
+   * Con `revisar`, el servidor sondea en vivo en vez de devolver la foto que toma
+   * en segundo plano. Solo lo pide el botón de Ajustes: en las demás pantallas la
+   * foto vale y evita una conexión a cada base de datos por cada carga.
+   */
+  async cargarApps(revisar = false): Promise<void> {
     try {
-      const arranque = await firstValueFrom(this.api.arranque())
+      const arranque = await firstValueFrom(this.api.arranque(revisar))
       this.apps.set(arranque.apps)
       this.periodos.set(arranque.periodos)
       if (arranque.admin) {

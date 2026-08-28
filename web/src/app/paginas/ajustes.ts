@@ -277,7 +277,8 @@ export class PaginaAjustes {
   protected readonly sesion = inject(Sesion)
 
   protected revisar(): void {
-    void this.sesion.cargarApps()
+    // En vivo: aquí hay alguien esperando a saber si su credencial nueva funciona.
+    void this.sesion.cargarApps(true)
   }
 
   protected fondo(color: string): string {

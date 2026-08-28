@@ -66,6 +66,17 @@ public class FuenteVbstats {
         this.poolEscritura = montar(propiedades, "vbstats-escritura", 1, false);
         this.jdbc = poolLectura == null ? null : new JdbcTemplate(poolLectura);
         this.jdbcEscritura = poolEscritura == null ? null : new JdbcTemplate(poolEscritura);
+
+        // Tope por consulta. El `connectionTimeout` del pool cubre el abrir la
+        // conexión, pero no una consulta ya lanzada que se queda esperando al
+        // servidor: sin esto, una tabla bloqueada al otro lado deja colgada la
+        // petición del panel indefinidamente.
+        if (jdbc != null) {
+            jdbc.setQueryTimeout(15);
+        }
+        if (jdbcEscritura != null) {
+            jdbcEscritura.setQueryTimeout(15);
+        }
     }
 
     private HikariDataSource montar(PropiedadesVbstats propiedades, String nombre, int maximo, boolean soloLectura) {

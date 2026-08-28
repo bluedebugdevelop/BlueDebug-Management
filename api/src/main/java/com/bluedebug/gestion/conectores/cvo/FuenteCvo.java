@@ -79,8 +79,15 @@ public class FuenteCvo {
             return false;
         }
         try {
-            firestore().collection("usuarios").limit(1).get().get();
+            // CON TIEMPO LÍMITE, siempre. Un `get()` a secas espera para siempre, y
+            // esta sonda llegó a colgar el healthcheck del despliegue entero
+            // cuando Firestore tardaba en contestar.
+            firestore().collection("usuarios").limit(1).get()
+                    .get(6, java.util.concurrent.TimeUnit.SECONDS);
             return true;
+        } catch (java.util.concurrent.TimeoutException e) {
+            log.warn("CVO: Firestore no contestó en 6 segundos");
+            return false;
         } catch (InterruptedException e) {
             // Restaurar la marca es obligatorio: tragarse una interrupción deja al
             // hilo creyendo que nadie le ha pedido que pare.

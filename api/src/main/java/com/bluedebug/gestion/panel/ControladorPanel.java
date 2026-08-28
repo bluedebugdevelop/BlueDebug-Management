@@ -28,10 +28,12 @@ public class ControladorPanel {
 
     private final ServicioPanel panel;
     private final RegistroAuditoria auditoria;
+    private final VigilanteEstado vigilante;
 
-    public ControladorPanel(ServicioPanel panel, RegistroAuditoria auditoria) {
+    public ControladorPanel(ServicioPanel panel, RegistroAuditoria auditoria, VigilanteEstado vigilante) {
         this.panel = panel;
         this.auditoria = auditoria;
+        this.vigilante = vigilante;
     }
 
     @GetMapping("/resumen")
@@ -54,7 +56,16 @@ public class ControladorPanel {
      * periodos se pueden pedir. Una sola llamada al arrancar en vez de tres.
      */
     @GetMapping("/arranque")
-    public Map<String, Object> arranque(@AuthenticationPrincipal Administrador admin) {
+    public Map<String, Object> arranque(@AuthenticationPrincipal Administrador admin,
+                                        @RequestParam(defaultValue = "false") boolean revisar) {
+        // Normalmente vale la foto que toma el vigilante en segundo plano. Con
+        // `revisar=true` se sondea en vivo: es lo que pulsa el botón «volver a
+        // comprobar» de Ajustes, donde devolver una foto de hace medio minuto
+        // sería justo lo contrario de lo que se ha pedido.
+        if (revisar) {
+            vigilante.revisarAhora();
+        }
+
         return Map.of(
                 "admin", admin,
                 "apps", panel.menu(),

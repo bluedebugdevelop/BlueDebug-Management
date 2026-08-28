@@ -51,8 +51,8 @@ export class Api {
 
   // -------------------------------------------------------------------- panel
 
-  arranque(): Observable<Arranque> {
-    return this.get('/api/panel/arranque')
+  arranque(revisar = false): Observable<Arranque> {
+    return this.get(`/api/panel/arranque${revisar ? '?revisar=true' : ''}`)
   }
 
   panel(dias: number): Observable<PanelGeneral> {

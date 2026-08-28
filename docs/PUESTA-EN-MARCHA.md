@@ -485,6 +485,25 @@ es que sean cobros de la App Store, que nunca aparecerán aquí.
 Compilar Angular y Maven en el mismo contenedor es lo más pesado del proyecto.
 Reintenta: la segunda vez reutiliza capas y pasa.
 
+**502 «Application failed to respond» y en los Deploy Logs un `SIGSEGV`.**
+Si la traza menciona `netty_tcnative`, la imagen base es de Alpine. Alpine usa
+musl en vez de glibc, y la biblioteca nativa de TLS que gRPC trae dentro —la que
+usa el SDK de Firestore— está compilada contra glibc: al cargarla, se cae la JVM
+entera. El `Dockerfile` usa `eclipse-temurin:17-jre-jammy` (Ubuntu) justo por
+esto, y **no debe volver a Alpine**.
+
+Es un fallo con muy mala pinta porque la aplicación arranca bien y muere unos
+segundos después, al abrir la primera conexión TLS. Sin las credenciales de CVO
+puestas eso no llega a pasar nunca, así que puede estar latente mucho tiempo y
+aparecer justo el día del despliegue con todo configurado.
+
+**502 sin ningún error en los logs, y el healthcheck marcado como fallido.**
+Comprueba que `/api/salud` responde rápido. Esa ruta no debe consultar bases de
+datos: si lo hace, cualquier lentitud de MySQL o de Firestore hace que Railway dé
+el servicio por caído y apague el dominio entero. Las sondas las hace
+`VigilanteEstado` en segundo plano precisamente para que el latido no dependa de
+nadie de fuera.
+
 **Una app sale apagada y no sé por qué.**
 No adivines: entra en **Ajustes**, donde cada app apagada tiene escrito su motivo
 concreto junto al nombre de la variable que le falta.

@@ -37,7 +37,9 @@ public record DescriptorApp(
         /** Tiene acciones de administración ejecutables desde el panel. */
         ACCIONES,
         /** Permite dar de baja o borrar cuentas. */
-        BORRAR_USUARIOS
+        BORRAR_USUARIOS,
+        /** Permite cambiar a mano el rol o el plan de una cuenta. */
+        EDITAR_ROL
     }
 
     /** Una columna extra de la tabla de usuarios, sacada del mapa {@code extra}. */

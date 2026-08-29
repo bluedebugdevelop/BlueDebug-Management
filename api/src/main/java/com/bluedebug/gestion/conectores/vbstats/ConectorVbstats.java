@@ -63,7 +63,8 @@ public class ConectorVbstats implements ConectorApp {
                 DescriptorApp.Capacidad.USUARIOS,
                 DescriptorApp.Capacidad.METRICAS,
                 DescriptorApp.Capacidad.ACCIONES,
-                DescriptorApp.Capacidad.BORRAR_USUARIOS));
+                DescriptorApp.Capacidad.BORRAR_USUARIOS,
+                DescriptorApp.Capacidad.EDITAR_ROL));
 
         // La pestaña de dinero solo aparece si hay de dónde sacarlo. Una pestaña
         // vacía y permanente enseña menos que no tenerla.
@@ -266,6 +267,76 @@ public class ConectorVbstats implements ConectorApp {
                 .con("tokensLimpiados", limpiados)
                 .con("registrado", registro != null)
                 .listo();
+    }
+
+    // ------------------------------------------------------------ editar plan
+
+    @Override
+    public java.util.Optional<com.bluedebug.gestion.conectores.modelo.EdicionRol> edicionRol() {
+        return java.util.Optional.of(new com.bluedebug.gestion.conectores.modelo.EdicionRol(
+                "Plan",
+                false,
+                List.of(
+                        com.bluedebug.gestion.conectores.modelo.EdicionRol.Opcion.de("free", "Gratis"),
+                        com.bluedebug.gestion.conectores.modelo.EdicionRol.Opcion.de("basic", "Basic"),
+                        com.bluedebug.gestion.conectores.modelo.EdicionRol.Opcion.de("pro", "Pro")),
+                "Esto cambia el plan en la base de datos, pero no cobra ni cancela nada en "
+                        + "Stripe ni en la App Store. Y ojo: si la cuenta tiene suscripción activa "
+                        + "en una pasarela, la propia app vuelve a poner el plan que diga la "
+                        + "pasarela la próxima vez que consulte su estado."));
+    }
+
+    @Override
+    public ResultadoAccion cambiarRol(String usuarioId, List<String> roles, String emailAdmin) {
+        int id;
+        try {
+            id = Integer.parseInt(usuarioId);
+        } catch (NumberFormatException e) {
+            throw new PeticionInvalida("El id de usuario de VBStats es un número");
+        }
+
+        // Un solo valor: VBStats declara `multiple = false`.
+        if (roles == null || roles.size() != 1) {
+            throw new PeticionInvalida("Hay que indicar exactamente un plan");
+        }
+        String plan = roles.get(0);
+        if (!edicionRol().orElseThrow().admite(plan)) {
+            throw new PeticionInvalida("Ese plan no existe en VBStats");
+        }
+
+        Map<String, Object> antes = repositorio.planDe(id);
+        if (antes.isEmpty()) {
+            throw new PeticionInvalida("Esa cuenta no existe");
+        }
+
+        String planAnterior = String.valueOf(antes.get("subscription_type"));
+        if (plan.equals(planAnterior)) {
+            return ResultadoAccion.ok("Ya estaba en " + plan);
+        }
+
+        repositorio.cambiarPlan(id, plan);
+
+        log.warn("AUDITORÍA: {} cambió el plan de {} ({}) de {} a {}",
+                emailAdmin, id, antes.get("email"), planAnterior, plan);
+
+        // Si paga por una pasarela, el cambio puede no durar: la app resincroniza
+        // el plan con lo que diga Stripe o Apple. Es mejor decirlo en el momento
+        // que dejar que lo descubra al ver que el plan «se ha vuelto solo» atrás.
+        boolean conPasarela = esVerdad(antes.get("tieneStripe")) || esVerdad(antes.get("tieneApple"));
+        if (conPasarela) {
+            return ResultadoAccion.ok("Plan cambiado a " + plan
+                    + ", pero esta cuenta tiene suscripción en una pasarela: la app puede volver a "
+                    + "ponerle el plan que diga Stripe o Apple.");
+        }
+        return ResultadoAccion.ok("Plan cambiado de " + planAnterior + " a " + plan);
+    }
+
+    /** MySQL devuelve los booleanos calculados como 1/0, no como true/false. */
+    private boolean esVerdad(Object valor) {
+        if (valor instanceof Boolean b) {
+            return b;
+        }
+        return valor instanceof Number n && n.intValue() != 0;
     }
 
     @Override

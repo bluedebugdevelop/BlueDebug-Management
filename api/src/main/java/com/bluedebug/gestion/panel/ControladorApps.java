@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -119,6 +120,48 @@ public class ControladorApps {
         }
 
         auditoria.anotar(admin.email(), id, accionId, resultado.mensaje(), resultado.correcto());
+        cache.olvidar();
+        return resultado;
+    }
+
+    /** Cómo se editan los roles en esta app, para que el front pinte el control. */
+    @GetMapping("/{id}/edicion-rol")
+    public ResponseEntity<com.bluedebug.gestion.conectores.modelo.EdicionRol> edicionRol(@PathVariable String id) {
+        return registro.buscar(id).edicionRol()
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    public record PeticionRol(List<String> roles) {}
+
+    /**
+     * Cambia el rol o el plan de una cuenta.
+     *
+     * Siempre recibe una lista, aunque la app solo admita un valor: así este
+     * método vale igual para el plan único de VBStats y para los roles múltiples
+     * del club, y el conector es quien valida lo que le encaja.
+     */
+    @PutMapping("/{id}/usuarios/{usuarioId}/rol")
+    public ResultadoAccion cambiarRol(@PathVariable String id,
+                                      @PathVariable String usuarioId,
+                                      @RequestBody PeticionRol peticion,
+                                      @AuthenticationPrincipal Administrador admin) {
+
+        ConectorApp conector = registro.buscar(id);
+        exigir(conector, DescriptorApp.Capacidad.EDITAR_ROL, "no permite cambiar roles desde el panel");
+
+        List<String> roles = peticion == null || peticion.roles() == null ? List.of() : peticion.roles();
+        String apunte = "cambiar-rol:" + usuarioId;
+
+        ResultadoAccion resultado;
+        try {
+            resultado = conector.cambiarRol(usuarioId, roles, admin.email());
+        } catch (RuntimeException e) {
+            auditoria.anotar(admin.email(), id, apunte, e.getMessage(), false);
+            throw e;
+        }
+
+        auditoria.anotar(admin.email(), id, apunte, resultado.mensaje(), resultado.correcto());
         cache.olvidar();
         return resultado;
     }

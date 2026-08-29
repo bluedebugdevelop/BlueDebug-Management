@@ -309,6 +309,41 @@ public class RepositorioVbstats {
         return borrados;
     }
 
+    /**
+     * Cambia el plan de una cuenta a mano.
+     *
+     * Solo toca `subscription_type`. NO se tocan `stripe_customer_id`,
+     * `apple_original_transaction_id` ni `subscription_expires_at`, y esto es
+     * deliberado: son el registro de lo que esa persona pagó de verdad. Borrarlos
+     * para «dejarlo limpio» destruiría la única prueba de una compra y dejaría
+     * descuadrado el panel de ingresos.
+     *
+     * Sí se limpia la caducidad cuando se pasa a `free`, porque una fecha de fin
+     * de suscripción en una cuenta gratuita no significa nada y confunde al leer
+     * la ficha.
+     */
+    public void cambiarPlan(int id, String plan) {
+        if ("free".equals(plan)) {
+            fuente.jdbcEscritura().update(
+                    "UPDATE users SET subscription_type = ?, subscription_expires_at = NULL WHERE id = ?",
+                    plan, id);
+            return;
+        }
+        fuente.jdbcEscritura().update(
+                "UPDATE users SET subscription_type = ? WHERE id = ?", plan, id);
+    }
+
+    /** El plan actual y por dónde paga, para decidir si avisar y para la auditoría. */
+    public Map<String, Object> planDe(int id) {
+        List<Map<String, Object>> filas = jdbc().queryForList("""
+                SELECT id, email, subscription_type,
+                       stripe_subscription_id IS NOT NULL AS tieneStripe,
+                       apple_original_transaction_id IS NOT NULL AS tieneApple
+                  FROM users WHERE id = ?
+                """, id);
+        return filas.isEmpty() ? Map.of() : filas.get(0);
+    }
+
     public Integer idDe(String email) {
         if (email == null || email.isBlank()) {
             return null;

@@ -61,7 +61,8 @@ public class ConectorCvo implements ConectorApp {
                 List.of(
                         DescriptorApp.Capacidad.USUARIOS,
                         DescriptorApp.Capacidad.METRICAS,
-                        DescriptorApp.Capacidad.ACCIONES),
+                        DescriptorApp.Capacidad.ACCIONES,
+                        DescriptorApp.Capacidad.EDITAR_ROL),
                 List.of(
                         new DescriptorApp.CampoExtra("roles", "Roles"),
                         new DescriptorApp.CampoExtra("equipos", "Equipos"),
@@ -280,6 +281,107 @@ public class ConectorCvo implements ConectorApp {
         return ResultadoAccion.ok(activo
                 ? ficha.get("nombre") + " vuelve a tener acceso"
                 : ficha.get("nombre") + " queda de baja; conserva su histórico");
+    }
+
+    // ----------------------------------------------------------- editar roles
+
+    @Override
+    public java.util.Optional<com.bluedebug.gestion.conectores.modelo.EdicionRol> edicionRol() {
+        return java.util.Optional.of(new com.bluedebug.gestion.conectores.modelo.EdicionRol(
+                "Roles",
+                // En plural y de verdad: la entrenadora del infantil puede jugar en
+                // el sénior, y quien lleva la web además entrena a un equipo.
+                true,
+                List.of(
+                        new com.bluedebug.gestion.conectores.modelo.EdicionRol.Opcion(
+                                "jugador", "Jugador",
+                                "Calendario, horarios, chat y avisos de sus equipos"),
+                        new com.bluedebug.gestion.conectores.modelo.EdicionRol.Opcion(
+                                "entrenador", "Entrenador",
+                                "Puede entrenar equipos: avisos, horarios y convocatorias"),
+                        new com.bluedebug.gestion.conectores.modelo.EdicionRol.Opcion(
+                                "admin", "Administrador",
+                                "Gestiona el club entero: equipos, altas y contenido de la web")),
+                "Ser entrenador de club no da mando sobre ningún equipo por sí solo: además hay "
+                        + "que estar en la lista de entrenadores de ese equipo, y eso se hace desde "
+                        + "la app."));
+    }
+
+    @Override
+    public ResultadoAccion cambiarRol(String uid, List<String> roles, String emailAdmin) {
+        if (uid == null || uid.isBlank()) {
+            throw new PeticionInvalida("Falta el uid de la ficha");
+        }
+        if (roles == null || roles.isEmpty()) {
+            // Sin roles, esa persona no podría hacer nada en la app y la propia
+            // ficha dejaría de tener sentido. La forma de sacar a alguien es la
+            // baja, que además tiene vuelta atrás.
+            throw new PeticionInvalida("Hay que dejarle al menos un rol. Para sacarle del club, dale de baja.");
+        }
+
+        var edicion = edicionRol().orElseThrow();
+        for (String rol : roles) {
+            if (!edicion.admite(rol)) {
+                throw new PeticionInvalida("El rol '" + rol + "' no existe en el club");
+            }
+        }
+
+        Map<String, Object> ficha = repositorio.ficha(uid);
+        if (ficha.isEmpty()) {
+            throw new PeticionInvalida("Esa ficha no existe en el club");
+        }
+
+        // El club no puede quedarse sin administradores: sin ninguno, nadie puede
+        // dar altas ni tocar equipos desde la app, y recuperarlo exige entrar a
+        // mano en la consola de Firestore. Se comprueba solo cuando el cambio
+        // QUITA el rol de admin a quien lo tenía.
+        List<String> rolesAntes = rolesDe(ficha);
+        if (rolesAntes.contains("admin") && !roles.contains("admin") && repositorio.cuantosAdmins() <= 1) {
+            return ResultadoAccion.error(
+                    "Es el único administrador activo del club. Nombra a otro antes de quitarle el rol.");
+        }
+
+        try {
+            repositorio.cambiarRoles(uid, roles);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ResultadoAccion.error("Se interrumpió el cambio; vuelve a intentarlo");
+        } catch (Exception e) {
+            log.error("CVO: no se pudieron cambiar los roles de {}", uid, e);
+            return ResultadoAccion.error("No se pudieron guardar los roles");
+        }
+
+        log.warn("AUDITORÍA: {} cambió los roles de {} ({}) de {} a {}",
+                emailAdmin, uid, ficha.get("email"), rolesAntes, roles);
+
+        return ResultadoAccion.ok(ficha.get("nombre") + " pasa a ser " + enTexto(roles));
+    }
+
+    /** Los roles de una ficha leída en crudo, admitiendo el formato antiguo. */
+    @SuppressWarnings("unchecked")
+    private List<String> rolesDe(Map<String, Object> ficha) {
+        if (ficha.get("roles") instanceof List<?> lista && !lista.isEmpty()) {
+            return ((List<Object>) lista).stream().map(String::valueOf).toList();
+        }
+        Object singular = ficha.get("rol");
+        return singular == null ? List.of() : List.of(String.valueOf(singular));
+    }
+
+    /** 'jugador y entrenador' — para el mensaje de confirmación. */
+    private String enTexto(List<String> roles) {
+        var edicion = edicionRol().orElseThrow();
+        List<String> nombres = roles.stream()
+                .map(r -> edicion.opciones().stream()
+                        .filter(o -> o.valor().equals(r))
+                        .map(o -> o.etiqueta().toLowerCase())
+                        .findFirst().orElse(r))
+                .toList();
+
+        if (nombres.size() == 1) {
+            return nombres.get(0);
+        }
+        return String.join(", ", nombres.subList(0, nombres.size() - 1))
+                + " y " + nombres.get(nombres.size() - 1);
     }
 
     /**

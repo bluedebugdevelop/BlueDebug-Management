@@ -78,7 +78,11 @@ public class RepositorioCvo {
         List<String> equipos = lista(doc, "equipos");
 
         Map<String, Object> extra = new LinkedHashMap<>();
-        extra.put("roles", String.join(", ", roles));
+        // La lista en crudo, no un texto ya montado: la tabla la pinta igual
+        // uniéndola por comas, y el editor de roles necesita poder marcar cuáles
+        // están puestos. Un texto habría que volver a partirlo, y eso es la clase
+        // de ida y vuelta que acaba fallando con el primer rol que lleve una coma.
+        extra.put("roles", roles);
         extra.put("equipos", equipos.stream()
                 .map(id -> nombresEquipo.getOrDefault(id, id))
                 .toList());
@@ -312,6 +316,34 @@ public class RepositorioCvo {
         }
 
         return borrados;
+    }
+
+    /**
+     * Escribe los roles de una ficha.
+     *
+     * Además de guardar `roles`, BORRA el campo `rol` en singular si lo hubiera.
+     * Las fichas antiguas —y la primera de admin, la que se crea a mano en la
+     * consola— lo traen, y la app admite los dos formatos leyendo primero el
+     * plural. Dejar el viejo ahí sería guardar dos verdades sobre la misma
+     * persona: funcionaría hasta que algo leyera el equivocado.
+     */
+    public void cambiarRoles(String uid, List<String> roles) throws ExecutionException, InterruptedException {
+        fuente.firestore().collection("usuarios").document(uid)
+                .update(Map.of(
+                        "roles", roles,
+                        "rol", com.google.cloud.firestore.FieldValue.delete()))
+                .get();
+    }
+
+    /** Cuántas fichas activas tienen rol de administrador del club. */
+    public long cuantosAdmins() {
+        long total = 0;
+        for (QueryDocumentSnapshot doc : documentos("usuarios")) {
+            if (Boolean.TRUE.equals(doc.getBoolean("activo")) && roles(doc).contains("admin")) {
+                total++;
+            }
+        }
+        return total;
     }
 
     public Map<String, Object> ficha(String uid) {

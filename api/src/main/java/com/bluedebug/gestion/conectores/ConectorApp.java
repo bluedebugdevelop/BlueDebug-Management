@@ -93,6 +93,25 @@ public interface ConectorApp {
         return ResultadoAccion.error("Esta aplicación no permite borrar cuentas desde el panel");
     }
 
+    /**
+     * Cómo se editan los roles en esta app: qué valores hay y si admite varios.
+     * Vacío si no se pueden editar desde el panel.
+     */
+    default Optional<com.bluedebug.gestion.conectores.modelo.EdicionRol> edicionRol() {
+        return Optional.empty();
+    }
+
+    /**
+     * Cambia el rol o el plan de una cuenta.
+     *
+     * Llega siempre una lista, aunque la app solo admita un valor: así el
+     * controlador es el mismo para las dos formas y el conector decide qué hacer
+     * con lo que recibe. Validar contra {@link #edicionRol()} es cosa suya.
+     */
+    default ResultadoAccion cambiarRol(String usuarioId, List<String> roles, String emailAdmin) {
+        return ResultadoAccion.error("Esta aplicación no permite cambiar roles desde el panel");
+    }
+
     /** Atajo: el id del descriptor, que es como se identifica en las urls. */
     default String id() {
         return descriptor().id();

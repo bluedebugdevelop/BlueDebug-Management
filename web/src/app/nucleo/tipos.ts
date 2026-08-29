@@ -13,7 +13,22 @@ export interface Administrador {
   foto: string | null
 }
 
-export type Capacidad = 'USUARIOS' | 'METRICAS' | 'INGRESOS' | 'ACCIONES' | 'BORRAR_USUARIOS'
+export type Capacidad =
+  | 'USUARIOS'
+  | 'METRICAS'
+  | 'INGRESOS'
+  | 'ACCIONES'
+  | 'BORRAR_USUARIOS'
+  | 'EDITAR_ROL'
+
+/** Cómo se edita el rol o el plan en una app concreta. Lo declara su conector. */
+export interface EdicionRol {
+  etiqueta: string
+  /** VBStats: un plan y solo uno. El club: varios roles a la vez. */
+  multiple: boolean
+  opciones: OpcionCampo[]
+  aviso: string | null
+}
 
 export interface CampoExtra {
   clave: string

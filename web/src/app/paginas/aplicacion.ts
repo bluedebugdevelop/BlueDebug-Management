@@ -12,7 +12,14 @@ import { TablaUsuarios } from '../componentes/tabla-usuarios'
 import { Api, type ErrorApi } from '../nucleo/api'
 import { dinero, entero, fechaHora } from '../nucleo/formato'
 import { Sesion } from '../nucleo/sesion'
-import type { AccionAdmin, Ingresos, ResumenApp, Tabla, UsuarioApp } from '../nucleo/tipos'
+import type {
+  AccionAdmin,
+  EdicionRol,
+  Ingresos,
+  ResumenApp,
+  Tabla,
+  UsuarioApp,
+} from '../nucleo/tipos'
 
 type Pestana = 'resumen' | 'usuarios' | 'ingresos' | 'acciones' | 'detalle'
 
@@ -115,7 +122,10 @@ type Pestana = 'resumen' | 'usuarios' | 'ingresos' | 'acciones' | 'detalle'
                 [camposExtra]="datos.app.camposExtra"
                 [borrable]="puedeBorrar()"
                 [textoBorrar]="textoBorrar()"
+                [edicionRol]="edicionRol()"
+                [guardando]="guardandoRol()"
                 (borrar)="borrar($event)"
+                (cambiarRol)="cambiarRol($event)"
               />
               @if (avisoBorrado(); as aviso) {
                 <p class="aviso-accion" [class.mal]="!aviso.correcto">{{ aviso.mensaje }}</p>
@@ -423,6 +433,8 @@ export class PaginaAplicacion {
   protected readonly ingresos = signal<Ingresos | null>(null)
   protected readonly acciones = signal<AccionAdmin[]>([])
   protected readonly tablas = signal<Tabla[]>([])
+  protected readonly edicionRol = signal<EdicionRol | null>(null)
+  protected readonly guardandoRol = signal(false)
 
   protected readonly cargando = signal(false)
   protected readonly error = signal<string | null>(null)
@@ -499,6 +511,11 @@ export class PaginaAplicacion {
       if (resumen.app.capacidades.includes('USUARIOS')) {
         this.usuarios.set(await this.pedir(() => firstValueFrom(this.api.usuarios(id)), []))
       }
+      if (resumen.app.capacidades.includes('EDITAR_ROL')) {
+        this.edicionRol.set(await this.pedir(() => firstValueFrom(this.api.edicionRol(id)), null))
+      } else {
+        this.edicionRol.set(null)
+      }
       if (resumen.app.capacidades.includes('INGRESOS')) {
         this.ingresos.set(await this.pedir(() => firstValueFrom(this.api.ingresos(id, this.periodo())), null))
       }
@@ -524,6 +541,29 @@ export class PaginaAplicacion {
   protected cambiarPeriodo(dias: number): void {
     this.periodo.set(dias)
     this.recargar()
+  }
+
+  protected async cambiarRol(cambio: { usuario: UsuarioApp; roles: string[] }): Promise<void> {
+    this.avisoBorrado.set(null)
+    this.guardandoRol.set(true)
+    try {
+      const resultado = await firstValueFrom(
+        this.api.cambiarRol(this.id(), cambio.usuario.id, cambio.roles),
+      )
+      // Se reutiliza el mismo aviso que el borrado: es el sitio donde el usuario
+      // ya mira después de tocar una fila, y tener dos franjas distintas para
+      // decir lo mismo solo añade ruido.
+      this.avisoBorrado.set({ correcto: resultado.correcto, mensaje: resultado.mensaje })
+
+      // Se recarga siempre, también si el conector lo rechazó: así la tabla
+      // vuelve a enseñar lo que hay de verdad en la base de datos y no el valor
+      // que se intentó poner.
+      this.recargar()
+    } catch (fallo) {
+      this.avisoBorrado.set({ correcto: false, mensaje: (fallo as ErrorApi).mensaje })
+    } finally {
+      this.guardandoRol.set(false)
+    }
   }
 
   protected async borrar(usuario: UsuarioApp): Promise<void> {

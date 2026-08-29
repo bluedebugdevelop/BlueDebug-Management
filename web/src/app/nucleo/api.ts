@@ -8,6 +8,7 @@ import type {
   AppEnMenu,
   Apunte,
   Arranque,
+  EdicionRol,
   Ingresos,
   PanelGeneral,
   ResultadoAccion,
@@ -95,6 +96,20 @@ export class Api {
 
   ejecutar(id: string, accionId: string, parametros: Record<string, unknown>): Observable<ResultadoAccion> {
     return this.post(`/api/apps/${id}/acciones/${accionId}`, parametros)
+  }
+
+  edicionRol(id: string): Observable<EdicionRol> {
+    return this.get(`/api/apps/${id}/edicion-rol`)
+  }
+
+  cambiarRol(id: string, usuarioId: string, roles: string[]): Observable<ResultadoAccion> {
+    return this.http
+      .put<ResultadoAccion>(
+        `/api/apps/${id}/usuarios/${encodeURIComponent(usuarioId)}/rol`,
+        { roles },
+        this.opciones,
+      )
+      .pipe(catchError(traducirError))
   }
 
   borrarUsuario(id: string, usuarioId: string): Observable<ResultadoAccion> {

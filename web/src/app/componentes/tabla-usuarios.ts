@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 import { FormsModule } from '@angular/forms'
 
 import { entero, fecha, ultimoAcceso } from '../nucleo/formato'
-import type { CampoExtra, UsuarioApp } from '../nucleo/tipos'
+import type { CampoExtra, EdicionRol, UsuarioApp } from '../nucleo/tipos'
 import { Icono } from './icono'
 
 /**
@@ -24,6 +24,10 @@ import { Icono } from './icono'
   imports: [FormsModule, Icono],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (edicionRol()?.aviso; as aviso) {
+      <p class="aviso-rol">{{ aviso }}</p>
+    }
+
     <div class="barra">
       <label class="buscador">
         <bd-icono nombre="buscar" [tamano]="16" />
@@ -72,10 +76,66 @@ import { Icono } from './icono'
                   </div>
                 </td>
                 @if (etiquetaPlan()) {
-                  <td>
-                    <span class="pastilla" [class.acento]="destacaPlan(usuario)">{{ usuario.plan || '—' }}</span>
-                    @if (!usuario.activo) {
-                      <span class="pastilla mal">de baja</span>
+                  <td class="celda-rol">
+                    @if (editando() === usuario.id) {
+                      <div class="editor">
+                        @if (edicionRol()!.multiple) {
+                          @for (opcion of edicionRol()!.opciones; track opcion.valor) {
+                            <label class="opcion" [title]="opcion.detalle || ''">
+                              <input
+                                type="checkbox"
+                                [checked]="seleccion().includes(opcion.valor)"
+                                (change)="alternar(opcion.valor)"
+                              />
+                              {{ opcion.etiqueta }}
+                            </label>
+                          }
+                        } @else {
+                          <select
+                            [ngModel]="seleccion()[0]"
+                            (ngModelChange)="seleccion.set([$event])"
+                            [name]="'rol-' + usuario.id"
+                            aria-label="Elegir"
+                          >
+                            @for (opcion of edicionRol()!.opciones; track opcion.valor) {
+                              <option [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+                            }
+                          </select>
+                        }
+
+                        <div class="botones-editor">
+                          <button
+                            type="button"
+                            class="mini guardar"
+                            [disabled]="seleccion().length === 0 || guardando()"
+                            (click)="guardar(usuario)"
+                          >
+                            {{ guardando() ? 'Guardando…' : 'Guardar' }}
+                          </button>
+                          <button type="button" class="mini" (click)="editando.set(null)">Cancelar</button>
+                        </div>
+                      </div>
+                    } @else {
+                      <span class="valores">
+                        @for (rol of rolesDe(usuario); track rol) {
+                          <span class="pastilla" [class.acento]="destaca(rol)">{{ nombreDe(rol) }}</span>
+                        } @empty {
+                          <span class="pastilla">—</span>
+                        }
+                        @if (!usuario.activo) {
+                          <span class="pastilla mal">de baja</span>
+                        }
+                        @if (edicionRol()) {
+                          <button
+                            type="button"
+                            class="icono-boton"
+                            [title]="'Cambiar ' + edicionRol()!.etiqueta.toLowerCase()"
+                            (click)="editar(usuario)"
+                          >
+                            <bd-icono nombre="ajustes" [tamano]="14" />
+                          </button>
+                        }
+                      </span>
                     }
                   </td>
                 }
@@ -221,6 +281,95 @@ import { Icono } from './icono'
         border: 1px dashed var(--borde);
         border-radius: var(--radio);
       }
+
+      /* --- editor de roles --- */
+
+      .aviso-rol {
+        font-size: 0.79rem;
+        line-height: 1.5;
+        color: var(--aviso);
+        border-left: 2px solid var(--aviso);
+        background: rgba(245, 158, 11, 0.06);
+        border-radius: 0 8px 8px 0;
+        padding: 0.6rem 0.85rem;
+        margin-bottom: 0.9rem;
+        max-width: 70ch;
+      }
+
+      .celda-rol {
+        min-width: 190px;
+      }
+
+      .valores {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        flex-wrap: wrap;
+      }
+
+      /* El lápiz solo aparece al pasar por la fila: si estuviera siempre visible,
+         una tabla de cien cuentas sería cien botones compitiendo por la vista. */
+      .valores .icono-boton {
+        opacity: 0;
+        transition: opacity var(--transicion);
+      }
+
+      tr:hover .valores .icono-boton,
+      .valores .icono-boton:focus-visible {
+        opacity: 1;
+      }
+
+      .icono-boton:focus-visible {
+        outline: 2px solid var(--acento);
+        outline-offset: 2px;
+      }
+
+      .editor {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+        padding: 0.5rem;
+        border: 1px solid var(--borde-fuerte);
+        border-radius: var(--radio-chico);
+        background: var(--fondo-2);
+        min-width: 210px;
+      }
+
+      .opcion {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-size: 0.82rem;
+        color: var(--texto-2);
+        cursor: pointer;
+      }
+
+      .opcion input {
+        width: auto;
+        margin: 0;
+        accent-color: var(--acento);
+      }
+
+      .editor select {
+        padding: 0.35rem 0.5rem;
+        font-size: 0.83rem;
+      }
+
+      .botones-editor {
+        display: flex;
+        gap: 0.35rem;
+        margin-top: 0.15rem;
+      }
+
+      .mini.guardar {
+        border-color: var(--acento);
+        color: var(--acento-claro);
+      }
+
+      .mini:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
     `,
   ],
 })
@@ -233,10 +382,19 @@ export class TablaUsuarios {
   /** Qué dice el botón: en unas apps es borrar y en otras dar de baja. */
   readonly textoBorrar = input('Borrar')
 
+  /** Cómo se editan los roles aquí. Null esconde el editor por completo. */
+  readonly edicionRol = input<EdicionRol | null>(null)
+
   readonly borrar = output<UsuarioApp>()
+  readonly cambiarRol = output<{ usuario: UsuarioApp; roles: string[] }>()
+
+  /** Lo pone el padre mientras la llamada está en vuelo. */
+  readonly guardando = input(false)
 
   protected readonly busqueda = signal('')
   protected readonly confirmando = signal<string | null>(null)
+  protected readonly editando = signal<string | null>(null)
+  protected readonly seleccion = signal<string[]>([])
 
   protected readonly filtrados = computed(() => {
     const texto = this.busqueda().trim().toLowerCase()
@@ -264,10 +422,49 @@ export class TablaUsuarios {
     return ultimoAcceso(usuario.ultimaSesion)
   }
 
-  protected destacaPlan(usuario: UsuarioApp): boolean {
+  /**
+   * Los roles que tiene ahora esa cuenta.
+   *
+   * Cuando la app admite varios, vienen en `extra.roles` como lista de verdad.
+   * Cuando admite uno solo —el plan de VBStats—, `plan` ya es ese valor. Así el
+   * mismo componente sirve para las dos formas sin saber de qué app se trata.
+   */
+  protected rolesDe(usuario: UsuarioApp): string[] {
+    const extra = usuario.extra?.['roles']
+    if (Array.isArray(extra)) {
+      return extra.map(String)
+    }
+    return usuario.plan ? [usuario.plan] : []
+  }
+
+  protected nombreDe(valor: string): string {
+    const opcion = this.edicionRol()?.opciones.find((o) => o.valor === valor)
+    return opcion?.etiqueta ?? valor
+  }
+
+  protected destaca(rol: string): boolean {
     // Lo que se paga y lo que manda, resaltado; lo demás, en gris. Son los dos
     // casos que se buscan con la vista al recorrer la tabla.
-    return ['pro', 'basic', 'admin', 'entrenador'].includes((usuario.plan ?? '').toLowerCase())
+    return ['pro', 'basic', 'admin', 'entrenador'].includes(rol.toLowerCase())
+  }
+
+  protected editar(usuario: UsuarioApp): void {
+    this.seleccion.set(this.rolesDe(usuario))
+    this.editando.set(usuario.id)
+    // Abrir el editor y dejar abierta una confirmación de borrado de otra fila
+    // sería pedir un clic en el sitio equivocado.
+    this.confirmando.set(null)
+  }
+
+  protected alternar(valor: string): void {
+    this.seleccion.update((actuales) =>
+      actuales.includes(valor) ? actuales.filter((v) => v !== valor) : [...actuales, valor],
+    )
+  }
+
+  protected guardar(usuario: UsuarioApp): void {
+    this.cambiarRol.emit({ usuario, roles: this.seleccion() })
+    this.editando.set(null)
   }
 
   protected extra(usuario: UsuarioApp, campo: CampoExtra): string {

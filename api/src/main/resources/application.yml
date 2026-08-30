@@ -71,6 +71,16 @@ bluedebug:
     # La misma cuenta de servicio que usa el backend de VBStats para FCM.
     firebase-json: ${BLUEDEBUG_VBSTATS_FIREBASE:}
 
+    # --- App Store: el otro sitio por donde cobra VBStats ---
+    # Las cuatro van juntas; con tres no se puede firmar el token y el conector
+    # se queda sin la parte de Apple (el resto sigue funcionando).
+    apple-issuer-id: ${BLUEDEBUG_APPLE_ISSUER:}
+    apple-key-id: ${BLUEDEBUG_APPLE_KEY_ID:}
+    apple-clave: ${BLUEDEBUG_APPLE_P8:}
+    apple-bundle-id: ${BLUEDEBUG_APPLE_BUNDLE:}
+    # true para hablar con el entorno de pruebas de Apple en vez de producción.
+    apple-pruebas: ${BLUEDEBUG_APPLE_SANDBOX:false}
+
   cvo:
     # Cuenta de servicio del proyecto cv-oviedo, en base64.
     firebase-json: ${BLUEDEBUG_CVO_FIREBASE:}

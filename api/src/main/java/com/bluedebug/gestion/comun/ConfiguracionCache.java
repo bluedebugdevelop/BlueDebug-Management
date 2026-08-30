@@ -27,7 +27,8 @@ public class ConfiguracionCache {
 
     @Bean
     public CacheManager cacheManager(@Value("${bluedebug.cache.segundos:60}") long segundos) {
-        CaffeineCacheManager gestor = new CaffeineCacheManager("resumenes", "ingresos", "stripe");
+        CaffeineCacheManager gestor = new CaffeineCacheManager(
+                "resumenes", "ingresos", "stripe", "appstore");
         gestor.setCaffeine(Caffeine.newBuilder()
                 .expireAfterWrite(segundos, TimeUnit.SECONDS)
                 .maximumSize(200));

@@ -45,15 +45,18 @@ public class ConectorVbstats implements ConectorApp {
     private final FuenteVbstats fuente;
     private final RepositorioVbstats repositorio;
     private final ServicioStripe stripe;
+    private final ServicioAppStore appStore;
     private final ServicioFcm fcm;
 
     public ConectorVbstats(FuenteVbstats fuente,
                            RepositorioVbstats repositorio,
                            ServicioStripe stripe,
+                           ServicioAppStore appStore,
                            ServicioFcm fcm) {
         this.fuente = fuente;
         this.repositorio = repositorio;
         this.stripe = stripe;
+        this.appStore = appStore;
         this.fcm = fcm;
     }
 
@@ -67,8 +70,9 @@ public class ConectorVbstats implements ConectorApp {
                 DescriptorApp.Capacidad.EDITAR_ROL));
 
         // La pestaña de dinero solo aparece si hay de dónde sacarlo. Una pestaña
-        // vacía y permanente enseña menos que no tenerla.
-        if (stripe.configurado()) {
+        // vacía y permanente enseña menos que no tenerla. Basta con que haya UNA
+        // de las dos pasarelas: se enseña lo que se sepa.
+        if (stripe.configurado() || appStore.configurado()) {
             capacidades.add(DescriptorApp.Capacidad.INGRESOS);
         }
 
@@ -157,32 +161,88 @@ public class ConectorVbstats implements ConectorApp {
         return estado().disponible() ? repositorio.usuarios() : List.of();
     }
 
+    /**
+     * El dinero, juntando las DOS pasarelas.
+     *
+     * VBStats cobra por Stripe y por la App Store, y durante un tiempo el panel
+     * solo veía la primera: enseñaba una facturación que se dejaba fuera a todos
+     * los suscriptores de iPhone. Ahora se suman, y las dos cifras son
+     * comparables porque las dos son el precio que pagó el cliente antes de
+     * comisiones (ver {@link ServicioAppStore}).
+     */
     @Override
     public Optional<Ingresos> ingresos(Rango rango) {
-        if (!stripe.configurado() || !estado().disponible()) {
+        if (!estado().disponible() || (!stripe.configurado() && !appStore.configurado())) {
             return Optional.empty();
         }
 
-        var cobros = stripe.cobros(rango);
-        int suscriptores = repositorio.suscripcionesActivas();
+        var deStripe = stripe.cobros(rango);
+        var deApple = appStore.cobros(rango, cuentasApple());
+
+        List<Ingresos.Movimiento> movimientos = new ArrayList<>(deStripe.movimientos());
+        movimientos.addAll(deApple.movimientos());
+        movimientos.sort((a, b) -> b.fecha().compareTo(a.fecha()));
+
+        // La serie diaria se suma día a día: son los mismos días del mismo rango,
+        // así que basta con emparejarlos por fecha.
+        Map<java.time.LocalDate, Double> porDia = new java.util.HashMap<>();
+        for (Serie.Punto p : deStripe.porDia().puntos()) {
+            porDia.merge(p.fecha(), p.valor(), Double::sum);
+        }
+        for (Ingresos.Movimiento m : deApple.movimientos()) {
+            if (m.importe() > 0) {
+                porDia.merge(rango.diaDe(m.fecha()), m.importe(), Double::sum);
+            }
+        }
+
+        // Y el reparto gana una categoría: cuánto entra por cada pasarela, que es
+        // lo primero que se quiere mirar cuando por fin están las dos.
+        List<Reparto.Trozo> porPasarela = new ArrayList<>();
+        if (deStripe.facturado() > 0) {
+            porPasarela.add(new Reparto.Trozo("Stripe", deStripe.facturado(), "#635BFF"));
+        }
+        if (deApple.facturado() > 0) {
+            porPasarela.add(new Reparto.Trozo("App Store", deApple.facturado(), "#A2AAAD"));
+        }
 
         return Optional.of(new Ingresos(
                 "eur",
-                cobros.facturado(),
-                cobros.devuelto(),
-                // Recurrente estimado: lo facturado en los últimos 30 días. No es el
-                // MRR contable —una anualidad cobrada de golpe lo dispara ese mes— pero
-                // sí es la cifra honesta que se puede dar sin leer cada suscripción de
-                // Stripe una por una.
+                redondear(deStripe.facturado() + deApple.facturado()),
+                redondear(deStripe.devuelto() + deApple.devuelto()),
                 mensualEstimado(),
-                suscriptores,
-                cobros.porDia(),
-                cobros.porPlan(),
-                cobros.movimientos()));
+                repositorio.suscripcionesActivas(),
+                rango.rellenar("facturado", "Facturado", "dinero", porDia),
+                porPasarela.isEmpty()
+                        ? deStripe.porPlan()
+                        : new Reparto("por_pasarela", "Facturación por pasarela", porPasarela),
+                movimientos.stream().limit(50).toList()));
     }
 
+    private List<ServicioAppStore.CuentaApple> cuentasApple() {
+        if (!appStore.configurado()) {
+            return List.of();
+        }
+        try {
+            return repositorio.cuentasConApple();
+        } catch (Exception e) {
+            log.warn("VBStats: no se pudieron leer las cuentas de Apple: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * Recurrente estimado: lo facturado por las dos pasarelas en los últimos 30
+     * días. No es el MRR contable —una anualidad cobrada de golpe lo dispara ese
+     * mes— pero sí es la cifra honesta que se puede dar sin leer una por una todas
+     * las suscripciones de Stripe y de Apple.
+     */
     private double mensualEstimado() {
-        return stripe.cobros(Rango.ultimosDias(30)).facturado();
+        Rango mes = Rango.ultimosDias(30);
+        return redondear(stripe.cobros(mes).facturado() + appStore.cobros(mes, cuentasApple()).facturado());
+    }
+
+    private double redondear(double valor) {
+        return Math.round(valor * 100d) / 100d;
     }
 
     // ----------------------------------------------------------------- acciones

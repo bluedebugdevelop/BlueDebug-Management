@@ -87,8 +87,8 @@ import type { PanelGeneral, ResumenApp } from '../nucleo/tipos'
               }
             </dl>
             <p class="nota">
-              Las compras hechas dentro de la App Store las cobra Apple y no pasan por Stripe:
-              cuentan como suscriptores, pero su importe no está en estas cifras.
+              Stripe y App Store juntos. En las dos es el precio que pagó el cliente, antes de
+              las comisiones de la pasarela.
             </p>
           </article>
         </section>

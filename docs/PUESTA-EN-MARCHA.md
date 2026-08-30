@@ -185,6 +185,58 @@ cobros. No crea suscripciones, no reembolsa, no toca clientes.
 
 ---
 
+## 04b · App Store — opcional
+
+VBStats cobra por dos sitios, y este es el segundo. Hace falta porque **la base
+de datos no guarda ningún importe de Apple**: solo el
+`apple_original_transaction_id` de cada cuenta. El dinero hay que ir a pedírselo
+a Apple con él.
+
+1. Entra en [App Store Connect](https://appstoreconnect.apple.com/) →
+   **Usuarios y acceso** → pestaña **Integraciones** (antes «Claves»).
+2. Elige **Compras dentro de la app** en la lista de la izquierda.
+3. Pulsa **+**, ponle nombre (`BlueDebug Management`) y **Generar**.
+4. Apúntate las tres cosas, porque el `.p8` **solo se descarga una vez**:
+   - **Issuer ID** — el UUID que sale arriba de la lista de claves.
+   - **Key ID** — el de la fila de la clave que acabas de crear.
+   - El fichero **`AuthKey_XXXXXXXX.p8`**, que se descarga al pulsar *Descargar*.
+5. El **bundle** de la app lo tienes en su ficha de App Store Connect; es el
+   mismo que en el proyecto de Xcode (`com.vbstats...`).
+
+Codifica el `.p8` igual que las cuentas de servicio, para que quepa en una
+variable de entorno:
+
+```bash
+base64 -w0 AuthKey_XXXXXXXX.p8
+```
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\ruta\AuthKey_XXXXXXXX.p8"))
+```
+
+> **Qué cifra vas a ver.** El precio que pagó el cliente, **antes** de la
+> comisión del 15-30 % de Apple. Es el mismo criterio con el que se cuenta
+> Stripe (el importe del cargo, antes de las comisiones de Stripe), y por eso las
+> dos se pueden sumar. Si algún día quieres el dinero que de verdad llega al
+> banco, eso son los Informes de Ventas de App Store Connect: otra integración,
+> que da el neto pero agregado por día, sin poder atribuirlo a personas.
+
+> **Transacciones sin importe.** Apple añadió el precio a los datos de
+> transacción en 2023. Una compra anterior puede venir sin él; el panel las
+> cuenta aparte en vez de inventarse una cifra, y salen en la tabla como «sin
+> importe».
+
+| | |
+|---|---|
+| **Variables** | `BLUEDEBUG_APPLE_ISSUER`, `BLUEDEBUG_APPLE_KEY_ID`, `BLUEDEBUG_APPLE_P8`, `BLUEDEBUG_APPLE_BUNDLE` |
+| **¿Secreto?** | El `.p8` **sí**. Los identificadores, no |
+| **Sin ellas** | Los ingresos solo cuentan Stripe; los suscriptores de iPhone siguen contándose, pero su dinero no |
+
+Las cuatro van juntas: con tres, el panel no puede firmar el token y se queda
+solo con Stripe.
+
+---
+
 ## 05 · Firebase de VBStats — opcional
 
 **Camino corto: copiar la que ya existe.** El backend de VBStats ya manda

@@ -315,8 +315,12 @@ const CAPACIDADES: Record<string, string> = {
 const VARIABLES: Record<string, { nombre: string; para: string }[]> = {
   vbstats: [
     { nombre: 'BLUEDEBUG_VBSTATS_URL', para: 'su base de datos MySQL' },
-    { nombre: 'BLUEDEBUG_VBSTATS_STRIPE', para: 'los ingresos (clave restringida de lectura)' },
+    { nombre: 'BLUEDEBUG_VBSTATS_STRIPE', para: 'los cobros por Stripe (clave restringida de lectura)' },
     { nombre: 'BLUEDEBUG_VBSTATS_FIREBASE', para: 'las notificaciones push' },
+    { nombre: 'BLUEDEBUG_APPLE_ISSUER', para: 'los cobros por la App Store' },
+    { nombre: 'BLUEDEBUG_APPLE_KEY_ID', para: 'íd.' },
+    { nombre: 'BLUEDEBUG_APPLE_P8', para: 'íd. (el fichero .p8)' },
+    { nombre: 'BLUEDEBUG_APPLE_BUNDLE', para: 'íd. (el bundle de la app)' },
   ],
   cvo: [{ nombre: 'BLUEDEBUG_CVO_FIREBASE', para: 'Firestore y los avisos del club' }],
 }

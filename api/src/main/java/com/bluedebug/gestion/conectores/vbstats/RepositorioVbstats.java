@@ -157,6 +157,25 @@ public class RepositorioVbstats {
         return n == null ? 0 : n;
     }
 
+    /**
+     * Las cuentas que compraron por la App Store.
+     *
+     * Son la puerta de entrada al dinero de Apple: la base de datos no guarda ni
+     * un importe, solo este identificador, y con él se le pide a Apple el
+     * historial de esa suscripción.
+     */
+    public List<ServicioAppStore.CuentaApple> cuentasConApple() {
+        return jdbc().query("""
+                SELECT id, email, apple_original_transaction_id
+                  FROM users
+                 WHERE apple_original_transaction_id IS NOT NULL
+                   AND apple_original_transaction_id <> ''
+                """, (rs, fila) -> new ServicioAppStore.CuentaApple(
+                        rs.getInt("id"),
+                        rs.getString("email"),
+                        rs.getString("apple_original_transaction_id")));
+    }
+
     public int totalPartidos() {
         Integer n = jdbc().queryForObject("SELECT COUNT(*) FROM matches", Integer.class);
         return n == null ? 0 : n;

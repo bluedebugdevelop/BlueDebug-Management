@@ -134,7 +134,7 @@ public class ServicioPanel {
         totales.add(Metrica.entero("altas", "Altas en el periodo", totalAltas,
                 "últimos " + rango.dias() + " días"));
         totales.add(Metrica.dinero("facturado", "Facturado", dinero.facturado(),
-                "en el periodo, sin la App Store"));
+                "Stripe y App Store, antes de comisiones"));
         if (appsCaidas > 0) {
             totales.add(Metrica.entero("caidas", "Apps sin datos", appsCaidas,
                     "revisa sus credenciales"));

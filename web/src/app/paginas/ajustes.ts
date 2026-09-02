@@ -310,6 +310,7 @@ const CAPACIDADES: Record<string, string> = {
   INGRESOS: 'Ingresos',
   ACCIONES: 'Acciones',
   BORRAR_USUARIOS: 'Bajas',
+  EDITAR_ROL: 'Roles y planes',
 }
 
 const VARIABLES: Record<string, { nombre: string; para: string }[]> = {
@@ -323,4 +324,7 @@ const VARIABLES: Record<string, { nombre: string; para: string }[]> = {
     { nombre: 'BLUEDEBUG_APPLE_BUNDLE', para: 'íd. (el bundle de la app)' },
   ],
   cvo: [{ nombre: 'BLUEDEBUG_CVO_FIREBASE', para: 'Firestore y los avisos del club' }],
+  cokitchen: [
+    { nombre: 'BLUEDEBUG_COKITCHEN_URL', para: 'su Postgres de Supabase (la cadena del «Session pooler»)' },
+  ],
 }

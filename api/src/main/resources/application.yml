@@ -99,6 +99,15 @@ bluedebug:
     firebase-json: ${BLUEDEBUG_CVO_FIREBASE:}
     web-url: ${BLUEDEBUG_CVO_WEB:https://clubvoleiboloviedo.com}
 
+  cokitchen:
+    # La conexión a su Postgres de Supabase. Vale la cadena que copia el botón
+    # «Connect» del proyecto tal cual (postgresql://usuario:clave@host:puerto/postgres).
+    # Se entra por Postgres y no por la API de Supabase porque las cuentas están
+    # en el esquema `auth`, que la API no expone.
+    url: ${BLUEDEBUG_COKITCHEN_URL:}
+    usuario: ${BLUEDEBUG_COKITCHEN_USUARIO:}
+    clave: ${BLUEDEBUG_COKITCHEN_CLAVE:}
+
 logging:
   level:
     root: INFO

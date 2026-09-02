@@ -323,6 +323,52 @@ lo guarda) y los avisos por Expo Push.
 
 ---
 
+## 06b · La base de datos de Co-Kitchen
+
+Co-Kitchen vive en Supabase, y el panel entra por **Postgres**, no por la API.
+No es capricho: las cuentas están en el esquema `auth`, que la API REST de
+Supabase no expone, así que por ahí no habría ni correos ni últimos accesos que
+enseñar.
+
+1. Abre el proyecto de Co-Kitchen en [supabase.com](https://supabase.com/dashboard).
+2. Arriba del todo, el botón **Connect**.
+3. Elige **Session pooler** y copia la cadena entera. Empieza por
+   `postgresql://postgres.<referencia>:...@aws-0-....pooler.supabase.com:5432/postgres`.
+4. Donde ponga `[YOUR-PASSWORD]`, escribe la contraseña **de la base de datos**.
+   No es la `service_role key`. Si no la tienes guardada: *Settings → Database →
+   Reset database password*, y guárdala en el gestor antes de cerrar la ventana,
+   porque solo se enseña una vez.
+5. Pégala tal cual en la variable. El panel la traduce a JDBC solo.
+
+> **Por qué el «Session pooler» y no la «Direct connection».** La conexión
+> directa de Supabase solo responde por IPv6, y Railway sale por IPv4: desde
+> producción no conecta y el conector sale apagado sin más pista que «no
+> responde». El pooler responde por las dos. El de transacciones (puerto 6543)
+> también vale; el panel ya se configura para no usar sentencias preparadas con
+> nombre, que es lo único que ese modo no soporta.
+
+Con esto se encienden las cuentas con su **último acceso**, los espacios
+compartidos, la despensa, los tickets y el borrado de cuenta.
+
+> **El PRO todavía no se puede dar.** Co-Kitchen no tiene planes: no hay ninguna
+> columna donde guardarlo. El panel lo comprueba cada minuto, así que el día que
+> se cree aparece solo el selector de plan en la tabla de usuarios, sin desplegar
+> nada. La columna que espera es exactamente esta:
+>
+> ```sql
+> alter table public.profiles
+>   add column plan text not null default 'free'
+>   check (plan in ('free', 'pro'));
+> ```
+
+| | |
+|---|---|
+| **Variable** | `BLUEDEBUG_COKITCHEN_URL` |
+| **¿Secreto?** | **Sí**: lleva dentro la contraseña de la base de datos |
+| **Sin ella** | Co-Kitchen sale apagada |
+
+---
+
 # Parte 2 · Montarlo
 
 ## 07 · Probar en local
@@ -344,6 +390,9 @@ BLUEDEBUG_VBSTATS_FIREBASE=<base64 del paso 05>
 
 # --- CV Oviedo ---
 BLUEDEBUG_CVO_FIREBASE=<base64 del paso 06>
+
+# --- Co-Kitchen ---
+BLUEDEBUG_COKITCHEN_URL=<cadena del Session pooler del paso 06b>
 ```
 
 > **En local, `COOKIE_SEGURA` va en `false`.** Sobre `http` el navegador descarta
@@ -411,6 +460,7 @@ BLUEDEBUG_VBSTATS_URL=<MYSQL_PUBLIC_URL>
 BLUEDEBUG_VBSTATS_STRIPE=<rk_live_...>
 BLUEDEBUG_VBSTATS_FIREBASE=<base64 de VBStats>
 BLUEDEBUG_CVO_FIREBASE=<base64 de cv-oviedo>
+BLUEDEBUG_COKITCHEN_URL=<cadena del Session pooler de Supabase>
 ```
 
 Dos diferencias con local, las dos deliberadas:
@@ -471,6 +521,7 @@ Logs**.
 | `BLUEDEBUG_VBSTATS_STRIPE` | No | Stripe → restringida, `Charges: Read` | Sin pestaña de ingresos |
 | `BLUEDEBUG_VBSTATS_FIREBASE` | No | Render → `FIREBASE_SERVICE_ACCOUNT_BASE64` | No se pueden mandar notificaciones |
 | `BLUEDEBUG_CVO_FIREBASE` | No | Firebase → cv-oviedo → Cuentas de servicio | CV Oviedo sale apagada |
+| `BLUEDEBUG_COKITCHEN_URL` | No | Supabase → Connect → Session pooler | Co-Kitchen sale apagada |
 | `BLUEDEBUG_CACHE_SEGUNDOS` | No | Lo eliges tú; por defecto 60 | Nada |
 
 ---

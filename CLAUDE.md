@@ -1,7 +1,7 @@
 # BlueDebug Management — panel de administración
 
 Panel único para administrar todas las apps de BlueDebug con una sola cuenta.
-Hoy administra **VBStats** y la **app del CV Oviedo**.
+Hoy administra **VBStats**, la **app del CV Oviedo** y **Co-Kitchen**.
 Repo `bluedebugdevelop/BlueDebug-Management`. En producción en
 `bluedebug-management-production.up.railway.app` desde el 2026-08-29.
 
@@ -30,7 +30,8 @@ api/src/main/java/com/bluedebug/gestion/
 │   ├── RegistroConectores.java   <- los descubre solo (Spring los inyecta)
 │   ├── modelo/                   <- lenguaje común: usuarios, métricas, series...
 │   ├── vbstats/                  <- MySQL + Stripe + FCM
-│   └── cvo/                      <- Firebase
+│   ├── cvo/                      <- Firebase
+│   └── cokitchen/                <- Postgres de Supabase
 ├── panel/
 ├── seguridad/
 └── comun/
@@ -75,5 +76,13 @@ posición pondría el titular equivocado en el idioma equivocado.
 |---|---|---|
 | VBStats | MySQL + Stripe + FCM | cuentas, suscripciones, ingresos, notificaciones, novedades de versión |
 | CV Oviedo | Firebase | fichas del club, equipos, roles, avisos |
+| Co-Kitchen | Postgres de Supabase | cuentas, últimos accesos, espacios, despensa, borrado, plan PRO |
 
-Está pensado para que meter la tercera y la décima no sea rehacer nada.
+Está pensado para que meter la cuarta y la décima no sea rehacer nada.
+
+**Co-Kitchen y el PRO.** La app todavía no tiene planes. El conector no lo da por
+hecho ni lo espera apagado: pregunta al catálogo de Postgres si
+`public.profiles` tiene una columna `plan` (con una caché de un minuto) y declara
+la capacidad `EDITAR_ROL` solo cuando existe. El día que se cree esa columna
+aparece el selector solo, sin desplegar nada. Es el mismo patrón de siempre —el
+backend describe, el front pinta— aplicado a algo que aún no existe.

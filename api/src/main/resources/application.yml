@@ -46,9 +46,15 @@ bluedebug:
     segundos: ${BLUEDEBUG_CACHE_SEGUNDOS:60}
 
   # Traducir al resto de idiomas lo que se escribe en castellano en los
-  # formularios. Sin clave, el panel funciona igual: los campos se rellenan a
-  # mano, que es como se hacía antes de que esto existiera.
+  # formularios. Hay dos motores y ninguno hace falta: sin claves, el panel
+  # funciona igual y lo que se publique irá solo en castellano.
+  #
+  # `auto` coge el que tenga clave, prefiriendo Gemini por ser el gratis.
+  # Para forzar uno: gemini | claude.
   traduccion:
+    motor: ${BLUEDEBUG_TRADUCCION_MOTOR:auto}
+    gemini-clave: ${GEMINI_API_KEY:}
+    gemini-modelo: ${BLUEDEBUG_GEMINI_MODELO:gemini-3.5-flash-lite}
     clave: ${ANTHROPIC_API_KEY:}
     modelo: ${BLUEDEBUG_TRADUCCION_MODELO:claude-opus-5}
 

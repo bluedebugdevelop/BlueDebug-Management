@@ -357,10 +357,11 @@ public class ConectorVbstats implements ConectorApp {
 
     private AccionAdmin publicarNovedades() {
         String ayudaIdiomas = traduccion.configurado()
-                ? "Se traduce solo al inglés, el francés y el portugués al publicar."
-                : "AVISO: el panel no tiene traductor configurado (falta ANTHROPIC_API_KEY), "
-                        + "así que esto se publicará solo en castellano y los cuatro idiomas de la "
-                        + "app lo leerán en castellano.";
+                ? "Se traduce solo al inglés, el francés y el portugués al publicar (con "
+                        + traduccion.motor() + ")."
+                : "AVISO: el panel no tiene traductor configurado (falta GEMINI_API_KEY o "
+                        + "ANTHROPIC_API_KEY), así que esto se publicará solo en castellano y los "
+                        + "cuatro idiomas de la app lo leerán en castellano.";
 
         return new AccionAdmin(
                 PUBLICAR_NOVEDADES,

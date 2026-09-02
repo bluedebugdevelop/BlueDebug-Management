@@ -46,12 +46,15 @@ castellano** y se traducen al inglés, francés y portugués **dentro del guarda
 no en un botón ni en un campo por idioma. El front no se enteró: el formulario
 sigue siendo el genérico del descriptor, con un textarea.
 
-El traductor vive en `comun/ServicioTraduccion` (Claude, porque son titulares de
-UI sueltos donde un traductor sin contexto elige mal la acepción) y es **opcional**:
-sin `ANTHROPIC_API_KEY` se publica solo en castellano, el resultado lo dice en voz
-alta y la app enseña el castellano a todos. Un idioma que vuelva con distinto
-número de líneas se descarta entero: emparejar por posición pondría el titular
-equivocado en el idioma equivocado.
+El traductor vive en `comun/` y es **opcional**. Hay dos motores tras la interfaz
+`MotorTraduccion` — **Gemini (gratis, el preferido)** y Claude — y se elige solo
+según qué clave haya (`GEMINI_API_KEY` / `ANTHROPIC_API_KEY`), o a mano con
+`BLUEDEBUG_TRADUCCION_MOTOR`. Se traduce con un modelo y no con un traductor
+porque son titulares de UI sueltos, donde uno sin contexto elige mal la acepción
+(«posición», «set»). Sin ninguna clave se publica solo en castellano, el
+resultado lo dice en voz alta y la app enseña el castellano a todos. Un idioma
+que vuelva con distinto número de líneas se descarta entero: emparejar por
+posición pondría el titular equivocado en el idioma equivocado.
 
 ## Convenciones
 

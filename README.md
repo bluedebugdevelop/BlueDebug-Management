@@ -123,7 +123,8 @@ Todas en `.env.example`. Copia ese fichero a `api/.env` para desarrollo local
 | `BLUEDEBUG_VBSTATS_STRIPE` | Los ingresos | Sin pestaña de ingresos |
 | `BLUEDEBUG_VBSTATS_FIREBASE` | Notificaciones push (FCM) | No se pueden mandar avisos |
 | `BLUEDEBUG_CVO_FIREBASE` | Firestore del club | CVO sale apagada |
-| `ANTHROPIC_API_KEY` | Traducir a en/fr/pt lo escrito en castellano | Se publica solo en castellano, y la app lo enseña en castellano a todos |
+| `GEMINI_API_KEY` | Traducir a en/fr/pt lo escrito en castellano (motor **gratis**, el que se usa por defecto) | Se prueba con Anthropic, y si tampoco está, se publica solo en castellano |
+| `ANTHROPIC_API_KEY` | Lo mismo, con Claude. Solo hace falta si no hay clave de Gemini | Nada, mientras haya la de Gemini |
 
 El secreto se genera con:
 

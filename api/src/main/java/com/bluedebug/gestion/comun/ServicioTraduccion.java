@@ -1,15 +1,10 @@
 package com.bluedebug.gestion.comun;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.StructuredMessageCreateParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,10 +26,16 @@ import java.util.Map;
  * deducirla. Al modelo se le puede contar qué es la app y para qué sirve el
  * texto, y eso es lo que arregla esos casos.
  *
+ * QUÉ MOTOR SE USA
+ *
+ * Hay dos, {@link MotorGemini} (gratis) y {@link MotorClaude} (de pago). Con
+ * {@code motor: auto} —lo normal— se coge el gratis si tiene clave y el otro si
+ * no. Se puede forzar uno con {@code BLUEDEBUG_TRADUCCION_MOTOR}.
+ *
  * REGLAS DE LA CASA
  *
- *   - Sin clave, {@link #configurado()} devuelve false y no se llama a nadie. El
- *     panel entero tiene que seguir funcionando sin esto configurado.
+ *   - Sin ninguna clave, {@link #configurado()} devuelve false y no se llama a
+ *     nadie. El panel entero tiene que seguir funcionando sin esto configurado.
  *   - Nunca lanza por un fallo de red o de la API: devuelve el motivo en un
  *     {@link Resultado} para poder enseñarlo en el formulario.
  *   - El número de líneas que entra es el que sale. Si el modelo devuelve otra
@@ -50,34 +51,44 @@ public class ServicioTraduccion {
     /** Los idiomas a los que se traduce, en el orden en que se enseñan. */
     public static final List<String> IDIOMAS = List.of("en", "fr", "pt");
 
-    /**
-     * Corto a propósito. Traducir seis titulares no lleva ni cinco segundos, y
-     * quien está mirando el formulario no va a esperar diez.
-     */
-    private static final Duration ESPERA = Duration.ofSeconds(45);
+    private final MotorTraduccion motor;
 
-    private final PropiedadesTraduccion propiedades;
-    private final AnthropicClient cliente;
+    public ServicioTraduccion(PropiedadesTraduccion propiedades,
+                              MotorGemini gemini,
+                              MotorClaude claude) {
+        this.motor = elegir(propiedades, gemini, claude);
 
-    public ServicioTraduccion(PropiedadesTraduccion propiedades) {
-        this.propiedades = propiedades;
-        this.cliente = propiedades.hayClave()
-                ? AnthropicOkHttpClient.builder()
-                        .apiKey(propiedades.clave())
-                        .timeout(ESPERA)
-                        .build()
-                : null;
-
-        if (cliente == null) {
-            log.info("Traducción: sin ANTHROPIC_API_KEY; los idiomas se rellenan a mano");
+        if (motor == null) {
+            log.info("Traducción: sin claves (GEMINI_API_KEY o ANTHROPIC_API_KEY); "
+                    + "lo que se publique irá solo en castellano");
+        } else {
+            log.info("Traducción: se usará {}", motor.nombre());
         }
+    }
+
+    /**
+     * Con qué se traduce.
+     *
+     * El automático prefiere el gratis. Si se pide uno a mano y resulta no estar
+     * configurado, se cae al otro en vez de quedarse sin traducir: una variable
+     * mal escrita no debería costar una versión publicada solo en castellano.
+     */
+    private MotorTraduccion elegir(PropiedadesTraduccion propiedades,
+                                   MotorGemini gemini,
+                                   MotorClaude claude) {
+        List<MotorTraduccion> orden = switch (propiedades.motorPedido()) {
+            case "claude", "anthropic" -> List.of(claude, gemini);
+            case "gemini", "google" -> List.of(gemini, claude);
+            default -> List.of(gemini, claude);
+        };
+        return orden.stream().filter(MotorTraduccion::configurado).findFirst().orElse(null);
     }
 
     /**
      * Lo que devuelve una traducción.
      *
-     * @param correcto si se pudo traducir algo.
-     * @param mensaje  qué contar en el formulario, salga bien o mal.
+     * @param correcto  si se pudo traducir algo.
+     * @param mensaje   qué contar en el formulario, salga bien o mal.
      * @param porIdioma las líneas traducidas, en el mismo orden que entraron.
      */
     public record Resultado(boolean correcto, String mensaje, Map<String, List<String>> porIdioma) {
@@ -87,12 +98,13 @@ public class ServicioTraduccion {
         }
     }
 
-    /** La respuesta del modelo, ya con forma: una lista por idioma. */
-    public record Traduccion(List<String> en, List<String> fr, List<String> pt) {
+    public boolean configurado() {
+        return motor != null;
     }
 
-    public boolean configurado() {
-        return cliente != null;
+    /** Cómo se llama el motor que está puesto, o vacío si no hay ninguno. */
+    public String motor() {
+        return motor == null ? "" : motor.nombre();
     }
 
     /**
@@ -106,47 +118,25 @@ public class ServicioTraduccion {
      */
     public Resultado traducir(List<String> lineas, String contexto, int maximo) {
         if (!configurado()) {
-            return Resultado.fallo("Falta ANTHROPIC_API_KEY en el panel; escribe los idiomas a mano.");
+            return Resultado.fallo("El panel no tiene traductor configurado "
+                    + "(falta GEMINI_API_KEY o ANTHROPIC_API_KEY).");
         }
         if (lineas == null || lineas.isEmpty()) {
             return Resultado.fallo("No hay nada que traducir todavía");
         }
 
         try {
-            StructuredMessageCreateParams<Traduccion> params = MessageCreateParams.builder()
-                    .model(propiedades.modeloElegido())
-                    .maxTokens(16000L)
-                    .system(sistema(contexto, maximo))
-                    .outputConfig(Traduccion.class)
-                    .addUserMessage(numeradas(lineas))
-                    .build();
-
-            var respuesta = cliente.messages().create(params);
-
-            // Una negativa del modelo llega con 200 y sin contenido útil. Es
-            // rarísimo traduciendo titulares de voleibol, pero si pasa hay que
-            // decirlo en vez de enseñar tres campos vacíos sin explicación.
-            if (respuesta.stopReason().map(razon -> razon.toString().contains("refusal")).orElse(false)) {
-                return Resultado.fallo("El modelo no quiso traducir este texto; escríbelo a mano.");
-            }
-
-            Traduccion traduccion = respuesta.content().stream()
-                    .flatMap(bloque -> bloque.text().stream())
-                    .map(texto -> texto.text())
-                    .findFirst()
-                    .orElse(null);
-
+            MotorTraduccion.Traduccion traduccion = motor.traducir(sistema(contexto, maximo), numeradas(lineas));
             if (traduccion == null) {
-                return Resultado.fallo("El traductor no devolvió nada; inténtalo otra vez.");
+                return Resultado.fallo(motor.nombre() + " no devolvió nada; inténtalo otra vez.");
             }
-
             return recoger(traduccion, lineas.size());
 
         } catch (RuntimeException e) {
             // Aquí caben desde un 401 por clave mal copiada hasta un corte de red.
             // Ninguno es motivo para tumbar el formulario: se cuenta y se sigue.
-            log.warn("Traducción: no se pudo traducir ({})", e.toString());
-            return Resultado.fallo("No se pudo traducir: " + e.getMessage());
+            log.warn("Traducción: {} no pudo traducir ({})", motor.nombre(), e.toString());
+            return Resultado.fallo("No se pudo traducir con " + motor.nombre() + ": " + e.getMessage());
         }
     }
 
@@ -158,7 +148,7 @@ public class ServicioTraduccion {
      * equivocado en el idioma equivocado, y eso no se ve hasta que lo lee alguien
      * que hable ese idioma.
      */
-    Resultado recoger(Traduccion traduccion, int esperadas) {
+    Resultado recoger(MotorTraduccion.Traduccion traduccion, int esperadas) {
         Map<String, List<String>> porIdioma = new LinkedHashMap<>();
         List<String> descartados = new ArrayList<>();
 

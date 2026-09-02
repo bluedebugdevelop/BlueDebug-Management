@@ -30,14 +30,16 @@ import java.util.TreeSet;
  * en su propio guardado, y un icono que él no conozca sería un hueco en blanco
  * en el diálogo. Si allí se añade uno, hay que añadirlo aquí.
  *
- * El formato de entrada es un textarea por idioma con UNA NOVEDAD POR LÍNEA, y
- * opcionalmente un icono delante separado por una barra:
+ * El formato de entrada es UN SOLO textarea, el del castellano, con UNA NOVEDAD
+ * POR LÍNEA y opcionalmente un icono delante separado por una barra:
  *
  *     mejora | Copia una posición a todas las demás
  *     Seguimiento de equipos en el inicio
  *
  * Se eligió eso y no algo con más ceremonia porque lo escribe una persona en un
- * textarea, deprisa, el día que publica una versión.
+ * textarea, deprisa, el día que publica una versión. Los otros tres idiomas no se
+ * escriben: llegan aquí ya traducidos ({@link com.bluedebug.gestion.comun.ServicioTraduccion}),
+ * y los que falten se sirven en castellano.
  */
 final class NovedadesVbstats {
 
@@ -105,33 +107,28 @@ final class NovedadesVbstats {
     /**
      * Convierte lo escrito en el formulario en el JSON que guarda la base de datos.
      *
-     * @param textoPorIdioma lo tecleado en cada idioma; el castellano es obligatorio
-     *                       y los que vengan vacíos, sencillamente no se guardan.
+     * @param castellano   lo tecleado, una novedad por línea.
+     * @param traducciones lo que devolvió el traductor, por idioma y en el mismo
+     *                     orden. Puede venir vacío: entonces se publica solo en
+     *                     castellano y la app lo enseña en castellano a todos.
      */
-    static Publicacion preparar(ObjectMapper json, Map<String, String> textoPorIdioma) {
-        Map<String, List<Novedad>> porIdioma = new LinkedHashMap<>();
-        for (String idioma : IDIOMAS) {
-            List<Novedad> lineas = leerLineas(textoPorIdioma.getOrDefault(idioma, ""), idioma);
-            if (!lineas.isEmpty()) {
-                porIdioma.put(idioma, lineas);
-            }
-        }
-
-        List<Novedad> base = porIdioma.get("es");
-        if (base == null) {
-            throw new PeticionInvalida("Hay que escribir al menos las novedades en castellano");
+    static Publicacion preparar(ObjectMapper json, String castellano, Map<String, List<String>> traducciones) {
+        List<Novedad> base = leerLineas(castellano, "es");
+        if (base.isEmpty()) {
+            throw new PeticionInvalida("Hay que escribir las novedades en castellano");
         }
 
         // Una traducción con más o menos líneas que el original no se puede casar
-        // con nada: se para aquí, en vez de publicar una lista descuadrada en un
-        // idioma que casi nadie del equipo va a abrir para comprobarlo.
-        for (var entrada : porIdioma.entrySet()) {
-            if (entrada.getValue().size() != base.size()) {
-                throw new PeticionInvalida("El castellano tiene " + base.size() + " novedades y "
-                        + entrada.getKey() + " tiene " + entrada.getValue().size()
-                        + ". Tienen que ser las mismas líneas y en el mismo orden.");
+        // con nada, así que se tira esa lengua entera y se publica sin ella: en la
+        // app se leerá el castellano, que es feo pero cierto. Emparejar por
+        // posición una lista descuadrada pondría el titular equivocado en el
+        // idioma equivocado, y eso no lo ve nadie hasta que lo lee un francés.
+        Map<String, List<String>> buenas = new LinkedHashMap<>();
+        traducciones.forEach((idioma, lineas) -> {
+            if (lineas != null && lineas.size() == base.size()) {
+                buenas.put(idioma, lineas);
             }
-        }
+        });
 
         ArrayNode items = json.createArrayNode();
         for (int i = 0; i < base.size(); i++) {
@@ -142,13 +139,15 @@ final class NovedadesVbstats {
             item.put("icon", base.get(i).icono());
             // `titles`, no `text`: es la clave que leen la app y su propio editor.
             ObjectNode textos = item.putObject("titles");
-            for (var entrada : porIdioma.entrySet()) {
-                textos.put(entrada.getKey(), entrada.getValue().get(i).titular());
+            textos.put("es", base.get(i).titular());
+            for (var entrada : buenas.entrySet()) {
+                textos.put(entrada.getKey(), entrada.getValue().get(i).strip());
             }
         }
 
         try {
-            return new Publicacion(json.writeValueAsString(items), base.size(), porIdioma.size());
+            // +1 por el castellano, que no es una traducción pero sí un idioma.
+            return new Publicacion(json.writeValueAsString(items), base.size(), buenas.size() + 1);
         } catch (JsonProcessingException e) {
             throw new PeticionInvalida("No se pudieron preparar las novedades: " + e.getMessage());
         }

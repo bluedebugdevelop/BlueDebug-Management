@@ -41,14 +41,17 @@ en los controladores: parar y mirar si cabe como capacidad declarada del conecto
 Casi siempre cabe. Esa es la decisión de diseño que sostiene el proyecto y hay que
 respetarla.
 
-Ejemplo de cómo se hace: traducir las novedades de VBStats al resto de idiomas no
-metió nada de VBStats en el front. Se declaró un `AccionAdmin.Asistente` (un botón
-que rellena campos a partir de otros) y un `ConectorApp.asistir`, y el formulario
-genérico lo pinta para cualquier app que lo declare. **Rellena el formulario, no
-guarda nada**: lo que se publica es siempre lo que se ve en pantalla al pulsar
-ejecutar, que es lo que permite enchufar ahí un modelo de lenguaje sin publicar a
-ciegas. El traductor vive en `comun/ServicioTraduccion` y es opcional: sin
-`ANTHROPIC_API_KEY` el botón ni aparece.
+Ejemplo de cómo se hace: las novedades de VBStats se escriben **solo en
+castellano** y se traducen al inglés, francés y portugués **dentro del guardado**,
+no en un botón ni en un campo por idioma. El front no se enteró: el formulario
+sigue siendo el genérico del descriptor, con un textarea.
+
+El traductor vive en `comun/ServicioTraduccion` (Claude, porque son titulares de
+UI sueltos donde un traductor sin contexto elige mal la acepción) y es **opcional**:
+sin `ANTHROPIC_API_KEY` se publica solo en castellano, el resultado lo dice en voz
+alta y la app enseña el castellano a todos. Un idioma que vuelva con distinto
+número de líneas se descarta entero: emparejar por posición pondría el titular
+equivocado en el idioma equivocado.
 
 ## Convenciones
 

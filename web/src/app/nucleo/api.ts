@@ -13,7 +13,6 @@ import type {
   PanelGeneral,
   ResultadoAccion,
   ResumenApp,
-  Sugerencia,
   Tabla,
   UsuarioApp,
   UsuarioGlobal,
@@ -97,11 +96,6 @@ export class Api {
 
   ejecutar(id: string, accionId: string, parametros: Record<string, unknown>): Observable<ResultadoAccion> {
     return this.post(`/api/apps/${id}/acciones/${accionId}`, parametros)
-  }
-
-  /** Pide al conector que rellene campos del formulario. No ejecuta la acción. */
-  asistir(id: string, accionId: string, parametros: Record<string, unknown>): Observable<Sugerencia> {
-    return this.post(`/api/apps/${id}/acciones/${accionId}/asistente`, parametros)
   }
 
   edicionRol(id: string): Observable<EdicionRol> {

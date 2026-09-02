@@ -124,32 +124,6 @@ public class ControladorApps {
         return resultado;
     }
 
-    /**
-     * Rellena campos del formulario de una acción, sin ejecutarla.
-     *
-     * No pasa por la auditoría a propósito: no cambia nada en ninguna app, y una
-     * auditoría llena de «propuso un texto» tapa las líneas que sí importan, que
-     * son las de quien mandó, borró o cambió algo.
-     */
-    @PostMapping("/{id}/acciones/{accionId}/asistente")
-    public com.bluedebug.gestion.conectores.modelo.Sugerencia asistir(
-            @PathVariable String id,
-            @PathVariable String accionId,
-            @RequestBody(required = false) Map<String, Object> parametros,
-            @AuthenticationPrincipal Administrador admin) {
-
-        ConectorApp conector = registro.buscar(id);
-
-        boolean asistible = conector.acciones().stream()
-                .anyMatch(a -> a.id().equals(accionId) && a.asistente() != null);
-        if (!asistible) {
-            throw new PeticionInvalida(
-                    conector.descriptor().nombre() + " no tiene nada que rellenar en '" + accionId + "'");
-        }
-
-        return conector.asistir(accionId, parametros == null ? Map.of() : parametros, admin.email());
-    }
-
     /** Cómo se editan los roles en esta app, para que el front pinte el control. */
     @GetMapping("/{id}/edicion-rol")
     public ResponseEntity<com.bluedebug.gestion.conectores.modelo.EdicionRol> edicionRol(@PathVariable String id) {

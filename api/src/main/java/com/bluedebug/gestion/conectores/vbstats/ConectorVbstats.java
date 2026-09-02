@@ -13,7 +13,6 @@ import com.bluedebug.gestion.conectores.modelo.Reparto;
 import com.bluedebug.gestion.conectores.modelo.ResultadoAccion;
 import com.bluedebug.gestion.conectores.modelo.ResumenApp;
 import com.bluedebug.gestion.conectores.modelo.Serie;
-import com.bluedebug.gestion.conectores.modelo.Sugerencia;
 import com.bluedebug.gestion.conectores.modelo.UsuarioApp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -346,11 +345,22 @@ public class ConectorVbstats implements ConectorApp {
 
     // ------------------------------------------------------- novedades de versión
 
+    /**
+     * Lo que va a las tiendas es una app de voleibol, y el traductor lo tiene que
+     * saber: sin esta línea, «posición», «set» o «recepción» salen traducidos por
+     * su acepción común y no por la del deporte.
+     */
+    private static final String CONTEXTO_NOVEDADES = """
+            VBStats, una app móvil de estadísticas de voleibol en directo. Las líneas son la lista de \
+            novedades que la app enseña una sola vez después de actualizarse, cada una un titular corto \
+            que se lee solo, sin explicación debajo. Vocabulario de voleibol y de app móvil.""";
+
     private AccionAdmin publicarNovedades() {
-        String ayudaTraduccion = traduccion.configurado()
-                ? "Lo rellena el botón de traducir. Se puede corregir a mano antes de publicar."
-                : "Las mismas líneas y en el mismo orden que en castellano. "
-                        + "Si se deja vacío, ahí se lee el castellano.";
+        String ayudaIdiomas = traduccion.configurado()
+                ? "Se traduce solo al inglés, el francés y el portugués al publicar."
+                : "AVISO: el panel no tiene traductor configurado (falta ANTHROPIC_API_KEY), "
+                        + "así que esto se publicará solo en castellano y los cuatro idiomas de la "
+                        + "app lo leerán en castellano.";
 
         return new AccionAdmin(
                 PUBLICAR_NOVEDADES,
@@ -366,81 +376,48 @@ public class ConectorVbstats implements ConectorApp {
                         AccionAdmin.Campo.texto("version", "Versión", 12,
                                 "La misma que lleva el build publicado (5.5, por ejemplo). Si no coincide "
                                         + "con la instalada, esa app no enseña nada."),
-                        AccionAdmin.Campo.area("es", "Novedades (castellano)", 900,
+                        AccionAdmin.Campo.area("es", "Novedades", 900,
                                 "Una línea por novedad, hasta " + NovedadesVbstats.MAXIMO_NOVEDADES
-                                        + ". Para elegir icono, empieza la línea con su nombre y una barra: "
-                                        + "«mejora | Copia una posición a todas las demás». Iconos: "
-                                        + NovedadesVbstats.iconosDisponibles() + "."),
-                        opcional("en", "Novedades (inglés)", ayudaTraduccion),
-                        opcional("fr", "Novedades (francés)", ayudaTraduccion),
-                        opcional("pt", "Novedades (portugués)", ayudaTraduccion),
+                                        + ". " + ayudaIdiomas + " Para elegir icono, empieza la línea con "
+                                        + "su nombre y una barra: «mejora | Copia una posición a todas las "
+                                        + "demás». Iconos: " + NovedadesVbstats.iconosDisponibles() + "."),
                         AccionAdmin.Campo.seleccion("estado", "Estado",
                                 "Oculta guarda el texto sin enseñarlo: sirve para dejarlo escrito antes de "
                                         + "que la versión salga.",
                                 List.of(
                                         new AccionAdmin.Campo.Opcion("publicada", "Publicada", "La app la enseña"),
-                                        new AccionAdmin.Campo.Opcion("oculta", "Oculta", "Guardada sin enseñar")))),
-                // Sin clave de traducción no se enseña el botón: un botón que solo
-                // sabe contestar «no está configurado» estorba más que ayuda.
-                traduccion.configurado()
-                        ? new AccionAdmin.Asistente("Traducir al resto de idiomas",
-                                "Rellena inglés, francés y portugués con lo escrito en castellano. "
-                                        + "Se puede repasar y corregir antes de publicar.")
-                        : null);
-    }
-
-    /** Un área de texto que se puede dejar vacía; los constructores de {@link AccionAdmin.Campo} son todos obligatorios. */
-    private AccionAdmin.Campo opcional(String clave, String etiqueta, String ayuda) {
-        return new AccionAdmin.Campo(clave, etiqueta, AccionAdmin.Campo.Tipo.AREA, false, 900, ayuda, List.of());
+                                        new AccionAdmin.Campo.Opcion("oculta", "Oculta", "Guardada sin enseñar")))));
     }
 
     /**
-     * Lo que va a las tiendas es una app de voleibol, y el traductor lo tiene que
-     * saber: sin esta línea, «posición», «set» o «recepción» salen traducidos por
-     * su acepción común y no por la del deporte.
+     * Publica las novedades, traduciéndolas por el camino.
+     *
+     * La traducción va aquí dentro y no en un botón aparte a propósito: escribir
+     * lo mismo cuatro veces es exactamente por lo que tres de los cuatro idiomas
+     * acaban vacíos, y como el servidor cae al castellano cuando falta uno, eso no
+     * se nota nunca. Al hacerlo en el guardado, la única forma de publicar sin
+     * traducir es que el traductor falle, y entonces se dice.
      */
-    private static final String CONTEXTO_NOVEDADES = """
-            VBStats, una app móvil de estadísticas de voleibol en directo. Las líneas son la lista de \
-            novedades que la app enseña una sola vez después de actualizarse, cada una un titular corto \
-            que se lee solo, sin explicación debajo. Vocabulario de voleibol y de app móvil.""";
-
-    @Override
-    public Sugerencia asistir(String accionId, Map<String, Object> parametros, String emailAdmin) {
-        if (!PUBLICAR_NOVEDADES.equals(accionId)) {
-            return Sugerencia.error("VBStats no sabe rellenar '" + accionId + "'");
-        }
-
-        // Se parsea con las mismas reglas que al publicar: si lo escrito no vale
-        // para guardarse, tampoco se manda a traducir. Así el error que sale es
-        // el de verdad («esa línea no cabe») y no un «no se pudo traducir».
-        List<String> titulares = NovedadesVbstats.titulares(texto(parametros, "es"));
-        if (titulares.isEmpty()) {
-            return Sugerencia.error("Escribe primero las novedades en castellano");
-        }
-
-        var resultado = traduccion.traducir(titulares, CONTEXTO_NOVEDADES, NovedadesVbstats.MAXIMO_TITULAR);
-        if (!resultado.correcto()) {
-            return Sugerencia.error(resultado.mensaje());
-        }
-
-        Map<String, String> valores = new java.util.LinkedHashMap<>();
-        resultado.porIdioma().forEach((idioma, lineas) -> valores.put(idioma, String.join("\n", lineas)));
-
-        return Sugerencia.de(resultado.mensaje(), valores);
-    }
-
     private ResultadoAccion publicarNovedades(Map<String, Object> parametros, String emailAdmin) {
         String version = texto(parametros, "version");
         if (!version.matches("\\d+(\\.\\d+){0,2}")) {
             throw new PeticionInvalida("La versión se escribe como 5.5 o 5.5.1, sin letras");
         }
 
-        Map<String, String> escrito = new java.util.LinkedHashMap<>();
-        for (String idioma : NovedadesVbstats.IDIOMAS) {
-            escrito.put(idioma, texto(parametros, idioma));
+        String castellano = texto(parametros, "es");
+
+        // Se parte en líneas ANTES de traducir, con las mismas reglas que al
+        // guardar. Si lo escrito no vale —una línea que no cabe, un icono que no
+        // existe—, el error que sale es ese y no se gasta una llamada al traductor.
+        List<String> titulares = NovedadesVbstats.titulares(castellano);
+        if (titulares.isEmpty()) {
+            throw new PeticionInvalida("Hay que escribir al menos una novedad");
         }
 
-        NovedadesVbstats.Publicacion publicacion = NovedadesVbstats.preparar(json, escrito);
+        var traducido = traduccion.traducir(titulares, CONTEXTO_NOVEDADES, NovedadesVbstats.MAXIMO_TITULAR);
+        NovedadesVbstats.Publicacion publicacion =
+                NovedadesVbstats.preparar(json, castellano, traducido.porIdioma());
+
         boolean publicada = !"oculta".equals(texto(parametros, "estado"));
 
         if (!repositorio.publicarNovedades(version, publicacion.itemsJson(), publicada, emailAdmin)) {
@@ -450,23 +427,39 @@ public class ConectorVbstats implements ConectorApp {
                             + "node db/run_whats_new_migration.js.");
         }
 
-        log.warn("AUDITORÍA: {} publicó las novedades de VBStats {} ({} líneas, {})",
-                emailAdmin, version, publicacion.novedades(), publicada ? "publicada" : "oculta");
+        log.warn("AUDITORÍA: {} publicó las novedades de VBStats {} ({} líneas, {} idiomas, {})",
+                emailAdmin, version, publicacion.novedades(), publicacion.idiomas(),
+                publicada ? "publicada" : "oculta");
 
-        // Los idiomas que faltan se cuentan en voz alta porque es el fallo que no
-        // se ve: una versión publicada solo en castellano funciona, y se lee en
-        // castellano en los otros tres países hasta que alguien se da cuenta.
-        String mensaje = publicada
-                ? "Novedades de la " + version + " publicadas"
-                : "Novedades de la " + version + " guardadas sin publicar";
-        if (publicacion.sinTraducir() > 0) {
-            mensaje += ". Faltan " + publicacion.sinTraducir() + " idiomas: ahí se leerá el castellano";
-        }
-
-        return ResultadoAccion.correcta(mensaje)
+        return ResultadoAccion.correcta(mensajePublicacion(version, publicada, publicacion, traducido))
                 .con("novedades", publicacion.novedades())
                 .con("idiomas", publicacion.idiomas())
                 .listo();
+    }
+
+    /**
+     * Lo que se lee debajo del botón.
+     *
+     * Que falte una traducción NO es un fallo que impida publicar —la app enseña
+     * el castellano y se entiende— pero tampoco puede pasar en silencio: es el
+     * error que no se ve, porque en pantalla todo salió verde y el que lo nota es
+     * un portugués tres semanas después.
+     */
+    private String mensajePublicacion(String version,
+                                      boolean publicada,
+                                      NovedadesVbstats.Publicacion publicacion,
+                                      com.bluedebug.gestion.comun.ServicioTraduccion.Resultado traducido) {
+
+        String base = publicada
+                ? "Novedades de la " + version + " publicadas"
+                : "Novedades de la " + version + " guardadas sin publicar";
+
+        if (publicacion.sinTraducir() == 0) {
+            return base + " en los cuatro idiomas";
+        }
+        return base + " solo en castellano: " + traducido.mensaje()
+                + " Los otros " + publicacion.sinTraducir()
+                + " idiomas lo leerán en castellano hasta que se vuelva a publicar.";
     }
 
     // ------------------------------------------------------------ editar plan
@@ -577,6 +570,7 @@ public class ConectorVbstats implements ConectorApp {
                 List.of(
                         com.bluedebug.gestion.conectores.modelo.Tabla.Columna.texto("version", "Versión"),
                         com.bluedebug.gestion.conectores.modelo.Tabla.Columna.entero("novedades", "Líneas"),
+                        com.bluedebug.gestion.conectores.modelo.Tabla.Columna.entero("idiomas", "Idiomas"),
                         com.bluedebug.gestion.conectores.modelo.Tabla.Columna.texto("publicada", "Estado"),
                         com.bluedebug.gestion.conectores.modelo.Tabla.Columna.texto("publicadoPor", "La escribió"),
                         com.bluedebug.gestion.conectores.modelo.Tabla.Columna.fecha("actualizado", "Actualizada")),

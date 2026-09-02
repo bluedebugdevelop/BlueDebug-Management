@@ -18,7 +18,6 @@ import java.util.List;
  * @param peligrosa    si hay que pedir confirmación escrita antes de ejecutarla.
  * @param textoBoton   verbo del botón de confirmar ('Enviar', 'Borrar').
  * @param campos       lo que hay que rellenar.
- * @param asistente    opcional: un botón que rellena campos a partir de otros.
  */
 public record AccionAdmin(
         String id,
@@ -27,28 +26,8 @@ public record AccionAdmin(
         String icono,
         boolean peligrosa,
         String textoBoton,
-        List<Campo> campos,
-        Asistente asistente
+        List<Campo> campos
 ) {
-    /** Una acción normal, sin nada que rellenar solo. */
-    public AccionAdmin(String id, String nombre, String descripcion, String icono,
-                       boolean peligrosa, String textoBoton, List<Campo> campos) {
-        this(id, nombre, descripcion, icono, peligrosa, textoBoton, campos, null);
-    }
-
-    /**
-     * Un botón que rellena unos campos a partir de lo escrito en otros.
-     *
-     * Existe para lo que no es ni un campo más ni otra acción: traducir a los
-     * otros tres idiomas lo que acabas de escribir en castellano, proponer el
-     * texto de un aviso a partir de un motivo... Lo que devuelve va al
-     * formulario, a la vista, y solo se guarda si luego se ejecuta la acción.
-     *
-     * @param boton lo que se lee en el botón.
-     * @param ayuda qué va a hacer, en una línea.
-     */
-    public record Asistente(String boton, String ayuda) {}
-
     /**
      * Un campo del formulario de la acción.
      *

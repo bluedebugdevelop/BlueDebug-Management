@@ -99,30 +99,6 @@ import { Icono } from './icono'
         </div>
       }
 
-      @if (accion().asistente; as asistente) {
-        <div class="asistente">
-          <button
-            type="button"
-            class="boton secundario"
-            [disabled]="asistiendo() || enviando()"
-            (click)="asistir()"
-          >
-            @if (asistiendo()) {
-              Trabajando…
-            } @else {
-              {{ asistente.boton }}
-            }
-          </button>
-          <p class="ayuda">{{ asistente.ayuda }}</p>
-        </div>
-      }
-
-      @if (avisoAsistente(); as aviso) {
-        <p class="mensaje" [class.bien]="aviso.correcto" [class.mal]="!aviso.correcto">
-          {{ aviso.mensaje }}
-        </p>
-      }
-
       @if (error()) {
         <p class="mensaje mal">{{ error() }}</p>
       }
@@ -260,25 +236,6 @@ import { Icono } from './icono'
         margin-bottom: 0.7rem;
       }
 
-      /* El asistente va separado del botón de ejecutar: rellena campos, no
-         guarda nada, y confundirlos sería el peor error posible aquí. */
-      .asistente {
-        display: flex;
-        flex-direction: column;
-        gap: 0.4rem;
-        padding-top: 0.2rem;
-        border-top: 1px dashed var(--borde);
-      }
-
-      .asistente .boton {
-        align-self: flex-start;
-      }
-
-      .asistente .ayuda {
-        font-size: 0.78rem;
-        color: var(--texto-3);
-      }
-
       .botones {
         display: flex;
         gap: 0.6rem;
@@ -300,8 +257,6 @@ export class FormularioAccion {
   protected readonly confirmando = signal(false)
   protected readonly error = signal<string | null>(null)
   protected readonly resultado = signal<ResultadoAccion | null>(null)
-  protected readonly asistiendo = signal(false)
-  protected readonly avisoAsistente = signal<{ correcto: boolean; mensaje: string } | null>(null)
 
   private readonly valores = signal<Record<string, string>>({})
 
@@ -324,11 +279,9 @@ export class FormularioAccion {
   protected cambiar(clave: string, valor: string): void {
     this.valores.update((actuales) => ({ ...actuales, [clave]: valor }))
     // Un resultado viejo debajo de un formulario que ya se está reescribiendo
-    // confunde: se borra en cuanto se toca algo. Vale igual para el aviso del
-    // asistente: en cuanto se corrige una línea, deja de describir lo que hay.
+    // confunde: se borra en cuanto se toca algo.
     this.resultado.set(null)
     this.error.set(null)
-    this.avisoAsistente.set(null)
   }
 
   protected largo(clave: string): number {
@@ -337,41 +290,6 @@ export class FormularioAccion {
 
   protected cercaDelTope(campo: CampoAccion): boolean {
     return campo.maximo > 0 && this.largo(campo.clave) > campo.maximo * 0.9
-  }
-
-  /**
-   * Pide al conector que rellene campos con lo que ya hay escrito.
-   *
-   * Lo que vuelve se mete en el formulario y ahí se queda, a la vista y
-   * editable: esto no guarda nada. Es lo que hace que se pueda enchufar aquí
-   * algo que acierta casi siempre pero no siempre —una traducción automática—
-   * sin que nadie publique a ciegas: lo que se publica es lo que se lee en
-   * pantalla después de repasarlo.
-   */
-  protected async asistir(): Promise<void> {
-    this.asistiendo.set(true)
-    this.avisoAsistente.set(null)
-    this.error.set(null)
-
-    const parametros: Record<string, string> = {}
-    for (const campo of this.accion().campos) {
-      parametros[campo.clave] = this.valor(campo.clave)
-    }
-
-    try {
-      const sugerencia = await firstValueFrom(
-        this.api.asistir(this.appId(), this.accion().id, parametros),
-      )
-
-      if (sugerencia.correcto) {
-        this.valores.update((actuales) => ({ ...actuales, ...sugerencia.valores }))
-      }
-      this.avisoAsistente.set({ correcto: sugerencia.correcto, mensaje: sugerencia.mensaje })
-    } catch (fallo) {
-      this.avisoAsistente.set({ correcto: false, mensaje: (fallo as ErrorApi).mensaje })
-    } finally {
-      this.asistiendo.set(false)
-    }
   }
 
   protected enviar(): void {
@@ -406,7 +324,6 @@ export class FormularioAccion {
 
       if (resultado.correcto) {
         this.valores.set({})
-        this.avisoAsistente.set(null)
       }
     } catch (fallo) {
       this.error.set((fallo as ErrorApi).mensaje)

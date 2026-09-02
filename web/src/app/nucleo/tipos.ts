@@ -160,20 +160,6 @@ export interface AccionAdmin {
   peligrosa: boolean
   textoBoton: string
   campos: CampoAccion[]
-  /** Un botón que rellena campos a partir de otros. Ausente si la acción no lo declara. */
-  asistente?: AsistenteAccion | null
-}
-
-export interface AsistenteAccion {
-  boton: string
-  ayuda: string
-}
-
-/** Lo que propone un asistente: texto para unos campos, sin guardar nada. */
-export interface Sugerencia {
-  correcto: boolean
-  mensaje: string
-  valores: Record<string, string>
 }
 
 export interface ResultadoAccion {

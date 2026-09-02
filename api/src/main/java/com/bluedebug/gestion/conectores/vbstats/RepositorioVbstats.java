@@ -276,7 +276,12 @@ public class RepositorioVbstats {
     public List<Map<String, Object>> novedadesPublicadas(int limite) {
         try {
             return jdbc().queryForList("""
-                    SELECT r.version, JSON_LENGTH(r.items) AS novedades, r.published AS publicada,
+                    SELECT r.version, JSON_LENGTH(r.items) AS novedades,
+                           -- Los idiomas de la primera novedad valen por los de todas:
+                           -- se escriben de una vez. Es la forma de ver de un vistazo
+                           -- cuál se publicó sin traducir.
+                           JSON_LENGTH(JSON_EXTRACT(r.items, '$[0].titles')) AS idiomas,
+                           r.published AS publicada,
                            u.email AS publicadoPor, r.updated_at AS actualizado
                       FROM whats_new_releases r
                       LEFT JOIN users u ON r.updated_by = u.id

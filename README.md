@@ -4,9 +4,10 @@ Panel de administración de todas las aplicaciones de BlueDebug, desde un solo
 sitio y con una sola cuenta.
 
 Ahora mismo administra **VBStats** (estadísticas de voleibol: cuentas,
-suscripciones, ingresos de Stripe y notificaciones push) y la app del **CV
-Oviedo** (fichas del club, equipos, roles y avisos). Está pensado para que meter
-la tercera, la cuarta y la décima no sea rehacer nada.
+suscripciones, ingresos de Stripe y notificaciones push), la app del **CV
+Oviedo** (fichas del club, equipos, roles y avisos) y **Co-Kitchen** (la despensa
+compartida: cuentas, últimos accesos, espacios y el plan PRO). Está pensado para
+que meter la cuarta y la décima no sea rehacer nada.
 
 > **¿Montándolo por primera vez?** Ve a
 > **[docs/PUESTA-EN-MARCHA.md](docs/PUESTA-EN-MARCHA.md)**: lleva paso a paso de un
@@ -38,7 +39,8 @@ api/src/main/java/com/bluedebug/gestion/
 │   ├── RegistroConectores.java   <- los encuentra solos (Spring los inyecta)
 │   ├── modelo/                   <- el lenguaje común: usuarios, métricas, series…
 │   ├── vbstats/                  <- MySQL + Stripe + FCM
-│   └── cvo/                      <- Firestore + Firebase Auth + Expo Push
+│   ├── cvo/                      <- Firestore + Firebase Auth + Expo Push
+│   └── cokitchen/                <- Postgres de Supabase (auth.users + public)
 ├── panel/                        <- la vista de conjunto y los controladores REST
 ├── seguridad/                    <- Google, lista blanca y cookie de sesión
 └── comun/                        <- errores, caché, recursos estáticos
@@ -123,6 +125,7 @@ Todas en `.env.example`. Copia ese fichero a `api/.env` para desarrollo local
 | `BLUEDEBUG_VBSTATS_STRIPE` | Los ingresos | Sin pestaña de ingresos |
 | `BLUEDEBUG_VBSTATS_FIREBASE` | Notificaciones push (FCM) | No se pueden mandar avisos |
 | `BLUEDEBUG_CVO_FIREBASE` | Firestore del club | CVO sale apagada |
+| `BLUEDEBUG_COKITCHEN_URL` | Su Postgres de Supabase (vale la cadena del botón «Connect») | Co-Kitchen sale apagada |
 | `GEMINI_API_KEY` | Traducir a en/fr/pt lo escrito en castellano (motor **gratis**, el que se usa por defecto) | Se prueba con Anthropic, y si tampoco está, se publica solo en castellano |
 | `ANTHROPIC_API_KEY` | Lo mismo, con Claude. Solo hace falta si no hay clave de Gemini | Nada, mientras haya la de Gemini |
 
@@ -212,10 +215,26 @@ Escrito aquí para que no haya que descubrirlo por sorpresa:
   memoria del proceso. Lo que sí perdura es el log del servicio, donde cada
   acción queda escrita con el correo de quien la lanzó. El sitio donde enchufar
   una tabla de verdad es `RegistroAuditoria`, y no hay que tocar nada más.
-- **«Accesos por día» no es exactamente eso.** Ninguna de las dos apps guarda un
+- **«Accesos por día» no es exactamente eso.** Ninguna de las tres apps guarda un
   historial de accesos, solo el último de cada cuenta. Para los días recientes se
   parece bastante; hacia atrás se queda corto. Está dicho en la etiqueta de la
   propia gráfica.
+- **El PRO de Co-Kitchen todavía no se puede dar**, porque Co-Kitchen todavía no
+  tiene planes: no hay ninguna columna donde guardarlo. El conector lo pregunta
+  cada minuto y el día que exista aparecen solos el selector de la tabla de
+  usuarios y el reparto de cuentas por plan, sin desplegar nada. La columna que
+  espera es exactamente esta:
+
+  ```sql
+  alter table public.profiles
+    add column plan text not null default 'free'
+    check (plan in ('free', 'pro'));
+  ```
+- **Co-Kitchen no manda avisos desde el panel.** Sus tokens de Expo están en
+  `device_tokens` y el panel ya sabe hablar con Expo (`ServicioPushExpo`, hoy
+  dentro de `cvo/`). Meterlo es mover ese servicio a `comun/` y declarar la
+  capacidad `ACCIONES`; no se ha hecho todavía para no tocar el conector del club
+  sin necesidad.
 - **Las bajas del club no se pueden deshacer desde el panel.** La acción existe en
   el backend (`cambiar-alta` admite volver a activar), pero todavía no hay botón
   para reactivar en la tabla.

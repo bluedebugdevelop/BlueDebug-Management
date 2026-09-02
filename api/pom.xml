@@ -92,6 +92,19 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!--
+      Co-Kitchen vive en Supabase, que es Postgres.
+
+      Se entra por Postgres y no por la API REST de Supabase porque las cuentas
+      estan en el esquema `auth`, que la API no expone: sin conexion directa no
+      hay ni correo ni ultimo acceso que enseñar.
+    -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
     <!-- Sesion propia del panel: JWT firmado en una cookie HttpOnly. -->
     <dependency>
       <groupId>io.jsonwebtoken</groupId>

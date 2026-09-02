@@ -374,13 +374,28 @@ public class RepositorioCokitchen {
      *
      *   1. De cada espacio del que es dueño: si queda alguien más, el mando pasa
      *      al miembro más antiguo; si estaba solo, el espacio se borra entero.
-     *   2. Lo que hizo en espacios ajenos se queda, pero sin nombre: el historial
+     *   2. Los espacios que sobreviven y que además CREÓ él pasan a figurar como
+     *      creados por su nuevo dueño. Ver el bloque de abajo: sin este paso el
+     *      borrado revienta.
+     *   3. Lo que hizo en espacios ajenos se queda, pero sin nombre: el historial
      *      del grupo sigue cuadrando y deja de apuntar a una persona.
-     *   3. Y entonces sí, fuera de {@code auth.users}, que en cascada se lleva su
+     *   4. Y entonces sí, fuera de {@code auth.users}, que en cascada se lleva su
      *      perfil, sus pertenencias y sus móviles.
      *
      * Todo en una transacción: a medias quedaría un espacio sin dueño, que es un
      * espacio en el que ya nadie puede invitar ni echar a nadie.
+     *
+     * EL PASO 2 NO SOBRA, AUNQUE LA APP NO LO HAGA. En Co-Kitchen,
+     * {@code groups.created_by} es {@code NOT NULL} y su clave ajena es
+     * {@code ON DELETE SET NULL}: las dos cosas a la vez no pueden cumplirse. En
+     * cuanto se borre a alguien que creó un espacio que le sobrevive, Postgres
+     * intenta poner ese campo a nulo y aborta con «null value violates not-null
+     * constraint». Hoy no se ha dado —ningún espacio ha cambiado de dueño
+     * todavía— pero se dará en cuanto alguien ceda el mando o se vaya el que
+     * montó el piso. La propia app arrastra el mismo fallo en
+     * {@code delete_my_account()}, y ahí es peor, porque es el borrado de cuenta
+     * que exige Google Play. Aquí se esquiva reasignando el creador; arreglarlo
+     * de raíz es quitarle el {@code NOT NULL} a esa columna en Co-Kitchen.
      */
     public void borrarUsuario(UUID id) {
         JdbcTemplate plantilla = fuente.jdbcEscritura();
@@ -409,6 +424,25 @@ public class RepositorioCokitchen {
                     plantilla.update("DELETE FROM public.groups WHERE id = ?", espacio);
                 }
             }
+
+            // El creador de los espacios que sobreviven pasa a ser su dueño de
+            // ahora. Se excluye al que se va porque su fila de miembro todavía
+            // existe —el traspaso de arriba asciende al nuevo dueño pero no
+            // degrada al viejo— y elegirlo a él dejaría el campo apuntando al
+            // que estamos borrando.
+            plantilla.update("""
+                    UPDATE public.groups g
+                       SET created_by = (SELECT gm.user_id FROM public.group_members gm
+                                          WHERE gm.group_id = g.id
+                                            AND gm.role = 'owner'
+                                            AND gm.user_id <> ?
+                                          ORDER BY gm.joined_at LIMIT 1)
+                     WHERE g.created_by = ?
+                       AND EXISTS (SELECT 1 FROM public.group_members gm
+                                    WHERE gm.group_id = g.id
+                                      AND gm.role = 'owner'
+                                      AND gm.user_id <> ?)
+                    """, id, id, id);
 
             plantilla.update("UPDATE public.consumption_log SET consumed_by = NULL WHERE consumed_by = ?", id);
             plantilla.update("""

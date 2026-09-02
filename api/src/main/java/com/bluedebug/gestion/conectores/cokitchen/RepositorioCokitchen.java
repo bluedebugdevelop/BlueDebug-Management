@@ -2,6 +2,8 @@ package com.bluedebug.gestion.conectores.cokitchen;
 
 import com.bluedebug.gestion.conectores.modelo.Rango;
 import com.bluedebug.gestion.conectores.modelo.UsuarioApp;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Repository;
@@ -36,6 +38,8 @@ import java.util.stream.Collectors;
  */
 @Repository
 public class RepositorioCokitchen {
+
+    private static final Logger log = LoggerFactory.getLogger(RepositorioCokitchen.class);
 
     /**
      * Cada cuánto se vuelve a mirar si ya existe la columna del plan.
@@ -99,6 +103,12 @@ public class RepositorioCokitchen {
                     """, Integer.class);
             hayPlan = n != null && n > 0;
         } catch (Exception e) {
+            // Se traga la excepción a propósito —una app caída no puede tumbar el
+            // panel— pero no en silencio: sin esta línea, una base que no responde
+            // y una columna que todavía no existe se ven exactamente igual desde
+            // fuera, y son dos problemas distintos.
+            log.warn("Co-Kitchen: no se pudo comprobar si `profiles` tiene columna `plan`, "
+                    + "se sigue como si no la tuviera: {}", e.getMessage());
             hayPlan = false;
         }
         planComprobadoEn = ahora;

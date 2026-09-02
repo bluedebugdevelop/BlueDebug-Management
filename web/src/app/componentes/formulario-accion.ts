@@ -361,4 +361,7 @@ const ETIQUETAS: Record<string, string> = {
   tokensLimpiados: 'Tokens muertos borrados',
   // Los de VBStats, que van por FCM.
   entregados: 'Entregados',
+  // Novedades de versión de VBStats.
+  novedades: 'Novedades escritas',
+  idiomas: 'Idiomas con texto propio',
 }

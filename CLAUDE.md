@@ -58,7 +58,7 @@ respetarla.
 
 | App | Por dónde entra | Qué expone |
 |---|---|---|
-| VBStats | MySQL + Stripe + FCM | cuentas, suscripciones, ingresos, notificaciones |
+| VBStats | MySQL + Stripe + FCM | cuentas, suscripciones, ingresos, notificaciones, novedades de versión |
 | CV Oviedo | Firebase | fichas del club, equipos, roles, avisos |
 
 Está pensado para que meter la tercera y la décima no sea rehacer nada.

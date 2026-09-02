@@ -262,6 +262,46 @@ public class RepositorioVbstats {
                 """, limite);
     }
 
+    /**
+     * Lo escrito en el «qué hay de nuevo» de cada versión.
+     *
+     * La tabla es la misma que usa el editor de dentro de la app (el panel admin
+     * de VBStats): aquí no se inventa nada, se escribe donde ya se escribía.
+     *
+     * Se aguanta que no exista todavía, porque no la crea el arranque del backend
+     * sino la migración `db/run_whats_new_migration.js`, y el panel puede apuntar
+     * a una base de datos que aún no la ha visto. Que falte no puede dejar la
+     * pestaña entera de VBStats en blanco.
+     */
+    public List<Map<String, Object>> novedadesPublicadas(int limite) {
+        try {
+            return jdbc().queryForList("""
+                    SELECT r.version, JSON_LENGTH(r.items) AS novedades, r.published AS publicada,
+                           u.email AS publicadoPor, r.updated_at AS actualizado
+                      FROM whats_new_releases r
+                      LEFT JOIN users u ON r.updated_by = u.id
+                     ORDER BY r.updated_at DESC
+                     LIMIT ?
+                    """, limite).stream()
+                    .map(fila -> {
+                        Map<String, Object> salida = new LinkedHashMap<>(fila);
+                        // `published` llega como 1/0 y la tabla del panel lo pintaría tal cual.
+                        salida.put("publicada", esVerdad(fila.get("publicada")) ? "Publicada" : "Oculta");
+                        return salida;
+                    })
+                    .collect(Collectors.toList());
+        } catch (org.springframework.jdbc.BadSqlGrammarException e) {
+            return List.of();
+        }
+    }
+
+    private boolean esVerdad(Object valor) {
+        if (valor instanceof Boolean b) {
+            return b;
+        }
+        return valor instanceof Number n && n.intValue() != 0;
+    }
+
     // ------------------------------------------------------------- escrituras
     // Todo lo que hay debajo de esta línea toca los datos de producción de
     // VBStats y va por el pool de escritura. Ver el aviso de FuenteVbstats.
@@ -300,6 +340,47 @@ public class RepositorioVbstats {
 
         Number id = claves.getKey();
         return id == null ? null : id.intValue();
+    }
+
+    /**
+     * Escribe las novedades de una versión.
+     *
+     * Va a `whats_new_releases`, la misma tabla que escribe el editor del panel
+     * admin de la app: el conector es otra puerta a lo mismo, no otro sitio donde
+     * guardarlo. Por eso respeta su formato al pie de la letra —`items` con
+     * `titles` por idioma— y su lista de iconos.
+     *
+     * Hay una fila por versión (clave única), así que volver a publicar la misma
+     * versión REESCRIBE lo que hubiera, se escribiera desde donde se escribiera:
+     * es lo que permite corregir una errata sin que a nadie le salgan dos listas.
+     * Quien ya cerró el diálogo no lo verá otra vez —la app se acuerda por
+     * versión—, así que las correcciones llegan a quien aún no ha actualizado.
+     *
+     * `updated_by` es una clave ajena a `users`, igual que en el historial de
+     * avisos: se busca por el correo del administrador del panel y, si esa persona
+     * no tiene cuenta en la app, se apunta el primer superadmin. La columna admite
+     * nulo, así que ni eso impide publicar.
+     *
+     * Devuelve `false` si la tabla no existe todavía en esa base de datos.
+     */
+    public boolean publicarNovedades(String version, String itemsJson, boolean publicada, String emailAdmin) {
+        Integer autor = idDe(emailAdmin);
+        if (autor == null) {
+            autor = primerSuperadmin();
+        }
+
+        try {
+            fuente.jdbcEscritura().update("""
+                    INSERT INTO whats_new_releases (version, published, items, updated_by)
+                         VALUES (?, ?, CAST(? AS JSON), ?)
+                    ON DUPLICATE KEY UPDATE published = VALUES(published),
+                                            items = VALUES(items),
+                                            updated_by = VALUES(updated_by)
+                    """, version, publicada ? 1 : 0, itemsJson, autor);
+            return true;
+        } catch (org.springframework.jdbc.BadSqlGrammarException e) {
+            return false;
+        }
     }
 
     /** Apunta a cuántos llegó de verdad, una vez que FCM ha contestado. */

@@ -13,6 +13,7 @@ import com.bluedebug.gestion.conectores.modelo.ResultadoAccion;
 import com.bluedebug.gestion.conectores.modelo.ResumenApp;
 import com.bluedebug.gestion.conectores.modelo.Serie;
 import com.bluedebug.gestion.conectores.modelo.UsuarioApp;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -47,17 +48,20 @@ public class ConectorVbstats implements ConectorApp {
     private final ServicioStripe stripe;
     private final ServicioAppStore appStore;
     private final ServicioFcm fcm;
+    private final ObjectMapper json;
 
     public ConectorVbstats(FuenteVbstats fuente,
                            RepositorioVbstats repositorio,
                            ServicioStripe stripe,
                            ServicioAppStore appStore,
-                           ServicioFcm fcm) {
+                           ServicioFcm fcm,
+                           ObjectMapper json) {
         this.fuente = fuente;
         this.repositorio = repositorio;
         this.stripe = stripe;
         this.appStore = appStore;
         this.fcm = fcm;
+        this.json = json;
     }
 
     @Override
@@ -248,10 +252,15 @@ public class ConectorVbstats implements ConectorApp {
     // ----------------------------------------------------------------- acciones
 
     private static final String ENVIAR_AVISO = "enviar-notificacion";
+    private static final String PUBLICAR_NOVEDADES = "publicar-novedades";
 
     @Override
     public List<AccionAdmin> acciones() {
-        return List.of(new AccionAdmin(
+        return List.of(avisoPush(), publicarNovedades());
+    }
+
+    private AccionAdmin avisoPush() {
+        return new AccionAdmin(
                 ENVIAR_AVISO,
                 "Enviar notificación",
                 "Manda un aviso push a los móviles con VBStats instalado. Queda en el historial "
@@ -269,15 +278,16 @@ public class ConectorVbstats implements ConectorApp {
                                         new AccionAdmin.Campo.Opcion("paid", "Solo quien paga", "Basic y Pro"),
                                         new AccionAdmin.Campo.Opcion("free", "Solo plan gratis", null),
                                         new AccionAdmin.Campo.Opcion("basic", "Solo Basic", null),
-                                        new AccionAdmin.Campo.Opcion("pro", "Solo Pro", null))))));
+                                        new AccionAdmin.Campo.Opcion("pro", "Solo Pro", null)))));
     }
 
     @Override
     public ResultadoAccion ejecutar(String accionId, Map<String, Object> parametros, String emailAdmin) {
-        if (!ENVIAR_AVISO.equals(accionId)) {
-            return ResultadoAccion.error("VBStats no conoce la acción '" + accionId + "'");
-        }
-        return enviarNotificacion(parametros, emailAdmin);
+        return switch (accionId) {
+            case ENVIAR_AVISO -> enviarNotificacion(parametros, emailAdmin);
+            case PUBLICAR_NOVEDADES -> publicarNovedades(parametros, emailAdmin);
+            default -> ResultadoAccion.error("VBStats no conoce la acción '" + accionId + "'");
+        };
     }
 
     private ResultadoAccion enviarNotificacion(Map<String, Object> parametros, String emailAdmin) {
@@ -326,6 +336,87 @@ public class ConectorVbstats implements ConectorApp {
                 .con("dispositivos", tokens.size())
                 .con("tokensLimpiados", limpiados)
                 .con("registrado", registro != null)
+                .listo();
+    }
+
+    // ------------------------------------------------------- novedades de versión
+
+    private AccionAdmin publicarNovedades() {
+        String ayudaTraduccion = "Las mismas líneas y en el mismo orden que en castellano. "
+                + "Si se deja vacío, ahí se lee el castellano.";
+
+        return new AccionAdmin(
+                PUBLICAR_NOVEDADES,
+                "Publicar novedades",
+                "Escribe el «qué hay de nuevo» que la app enseña una sola vez tras actualizar. "
+                        + "Solo lo ve quien tenga instalada exactamente esa versión, así que se puede "
+                        + "dejar preparado antes de que el build llegue a las tiendas. Es el mismo "
+                        + "resumen que edita el panel admin de la app: publicar aquí lo reescribe.",
+                "movil",
+                false,
+                "Publicar",
+                List.of(
+                        AccionAdmin.Campo.texto("version", "Versión", 12,
+                                "La misma que lleva el build publicado (5.5, por ejemplo). Si no coincide "
+                                        + "con la instalada, esa app no enseña nada."),
+                        AccionAdmin.Campo.area("es", "Novedades (castellano)", 900,
+                                "Una línea por novedad, hasta " + NovedadesVbstats.MAXIMO_NOVEDADES
+                                        + ". Para elegir icono, empieza la línea con su nombre y una barra: "
+                                        + "«mejora | Copia una posición a todas las demás». Iconos: "
+                                        + NovedadesVbstats.iconosDisponibles() + "."),
+                        opcional("en", "Novedades (inglés)", ayudaTraduccion),
+                        opcional("fr", "Novedades (francés)", ayudaTraduccion),
+                        opcional("pt", "Novedades (portugués)", ayudaTraduccion),
+                        AccionAdmin.Campo.seleccion("estado", "Estado",
+                                "Oculta guarda el texto sin enseñarlo: sirve para dejarlo escrito antes de "
+                                        + "que la versión salga.",
+                                List.of(
+                                        new AccionAdmin.Campo.Opcion("publicada", "Publicada", "La app la enseña"),
+                                        new AccionAdmin.Campo.Opcion("oculta", "Oculta", "Guardada sin enseñar")))));
+    }
+
+    /** Un área de texto que se puede dejar vacía; los constructores de {@link AccionAdmin.Campo} son todos obligatorios. */
+    private AccionAdmin.Campo opcional(String clave, String etiqueta, String ayuda) {
+        return new AccionAdmin.Campo(clave, etiqueta, AccionAdmin.Campo.Tipo.AREA, false, 900, ayuda, List.of());
+    }
+
+    private ResultadoAccion publicarNovedades(Map<String, Object> parametros, String emailAdmin) {
+        String version = texto(parametros, "version");
+        if (!version.matches("\\d+(\\.\\d+){0,2}")) {
+            throw new PeticionInvalida("La versión se escribe como 5.5 o 5.5.1, sin letras");
+        }
+
+        Map<String, String> escrito = new java.util.LinkedHashMap<>();
+        for (String idioma : NovedadesVbstats.IDIOMAS) {
+            escrito.put(idioma, texto(parametros, idioma));
+        }
+
+        NovedadesVbstats.Publicacion publicacion = NovedadesVbstats.preparar(json, escrito);
+        boolean publicada = !"oculta".equals(texto(parametros, "estado"));
+
+        if (!repositorio.publicarNovedades(version, publicacion.itemsJson(), publicada, emailAdmin)) {
+            return ResultadoAccion.error(
+                    "La base de datos de VBStats todavía no tiene la tabla whats_new_releases. No la "
+                            + "crea el arranque del backend: hay que lanzar su migración, "
+                            + "node db/run_whats_new_migration.js.");
+        }
+
+        log.warn("AUDITORÍA: {} publicó las novedades de VBStats {} ({} líneas, {})",
+                emailAdmin, version, publicacion.novedades(), publicada ? "publicada" : "oculta");
+
+        // Los idiomas que faltan se cuentan en voz alta porque es el fallo que no
+        // se ve: una versión publicada solo en castellano funciona, y se lee en
+        // castellano en los otros tres países hasta que alguien se da cuenta.
+        String mensaje = publicada
+                ? "Novedades de la " + version + " publicadas"
+                : "Novedades de la " + version + " guardadas sin publicar";
+        if (publicacion.sinTraducir() > 0) {
+            mensaje += ". Faltan " + publicacion.sinTraducir() + " idiomas: ahí se leerá el castellano";
+        }
+
+        return ResultadoAccion.correcta(mensaje)
+                .con("novedades", publicacion.novedades())
+                .con("idiomas", publicacion.idiomas())
                 .listo();
     }
 
@@ -432,6 +523,17 @@ public class ConectorVbstats implements ConectorApp {
             return List.of();
         }
         return List.of(new com.bluedebug.gestion.conectores.modelo.Tabla(
+                "novedades",
+                "Novedades por versión",
+                List.of(
+                        com.bluedebug.gestion.conectores.modelo.Tabla.Columna.texto("version", "Versión"),
+                        com.bluedebug.gestion.conectores.modelo.Tabla.Columna.entero("novedades", "Líneas"),
+                        com.bluedebug.gestion.conectores.modelo.Tabla.Columna.texto("publicada", "Estado"),
+                        com.bluedebug.gestion.conectores.modelo.Tabla.Columna.texto("publicadoPor", "La escribió"),
+                        com.bluedebug.gestion.conectores.modelo.Tabla.Columna.fecha("actualizado", "Actualizada")),
+                repositorio.novedadesPublicadas(15),
+                "Todavía no se han publicado novedades de ninguna versión"),
+                new com.bluedebug.gestion.conectores.modelo.Tabla(
                 "avisos",
                 "Historial de avisos",
                 List.of(

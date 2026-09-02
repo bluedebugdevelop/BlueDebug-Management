@@ -154,6 +154,17 @@ final class NovedadesVbstats {
         }
     }
 
+    /**
+     * Solo los titulares, sin el icono de delante.
+     *
+     * Es lo que se manda a traducir: el icono es el mismo en los cuatro idiomas,
+     * y mandarlo sería pedirle al traductor que devuelva intacto algo que no
+     * tiene por qué entender.
+     */
+    static List<String> titulares(String bruto) {
+        return leerLineas(bruto, "es").stream().map(Novedad::titular).toList();
+    }
+
     /** Una línea del formulario ya partida en icono y titular. */
     private record Novedad(String icono, String titular) {
     }

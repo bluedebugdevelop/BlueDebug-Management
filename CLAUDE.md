@@ -41,6 +41,15 @@ en los controladores: parar y mirar si cabe como capacidad declarada del conecto
 Casi siempre cabe. Esa es la decisión de diseño que sostiene el proyecto y hay que
 respetarla.
 
+Ejemplo de cómo se hace: traducir las novedades de VBStats al resto de idiomas no
+metió nada de VBStats en el front. Se declaró un `AccionAdmin.Asistente` (un botón
+que rellena campos a partir de otros) y un `ConectorApp.asistir`, y el formulario
+genérico lo pinta para cualquier app que lo declare. **Rellena el formulario, no
+guarda nada**: lo que se publica es siempre lo que se ve en pantalla al pulsar
+ejecutar, que es lo que permite enchufar ahí un modelo de lenguaje sin publicar a
+ciegas. El traductor vive en `comun/ServicioTraduccion` y es opcional: sin
+`ANTHROPIC_API_KEY` el botón ni aparece.
+
 ## Convenciones
 
 - **Código y comentarios en español** (`conectores`, `seguridad`, `panel`, `comun`),

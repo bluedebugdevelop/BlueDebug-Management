@@ -1,6 +1,7 @@
 package com.bluedebug.gestion.conectores.vbstats;
 
 import com.bluedebug.gestion.comun.PeticionInvalida;
+import com.bluedebug.gestion.comun.ServicioTraduccion;
 import com.bluedebug.gestion.conectores.ConectorApp;
 import com.bluedebug.gestion.conectores.modelo.AccionAdmin;
 import com.bluedebug.gestion.conectores.modelo.DescriptorApp;
@@ -12,6 +13,7 @@ import com.bluedebug.gestion.conectores.modelo.Reparto;
 import com.bluedebug.gestion.conectores.modelo.ResultadoAccion;
 import com.bluedebug.gestion.conectores.modelo.ResumenApp;
 import com.bluedebug.gestion.conectores.modelo.Serie;
+import com.bluedebug.gestion.conectores.modelo.Sugerencia;
 import com.bluedebug.gestion.conectores.modelo.UsuarioApp;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -48,6 +50,7 @@ public class ConectorVbstats implements ConectorApp {
     private final ServicioStripe stripe;
     private final ServicioAppStore appStore;
     private final ServicioFcm fcm;
+    private final ServicioTraduccion traduccion;
     private final ObjectMapper json;
 
     public ConectorVbstats(FuenteVbstats fuente,
@@ -55,12 +58,14 @@ public class ConectorVbstats implements ConectorApp {
                            ServicioStripe stripe,
                            ServicioAppStore appStore,
                            ServicioFcm fcm,
+                           ServicioTraduccion traduccion,
                            ObjectMapper json) {
         this.fuente = fuente;
         this.repositorio = repositorio;
         this.stripe = stripe;
         this.appStore = appStore;
         this.fcm = fcm;
+        this.traduccion = traduccion;
         this.json = json;
     }
 
@@ -342,8 +347,10 @@ public class ConectorVbstats implements ConectorApp {
     // ------------------------------------------------------- novedades de versión
 
     private AccionAdmin publicarNovedades() {
-        String ayudaTraduccion = "Las mismas líneas y en el mismo orden que en castellano. "
-                + "Si se deja vacío, ahí se lee el castellano.";
+        String ayudaTraduccion = traduccion.configurado()
+                ? "Lo rellena el botón de traducir. Se puede corregir a mano antes de publicar."
+                : "Las mismas líneas y en el mismo orden que en castellano. "
+                        + "Si se deja vacío, ahí se lee el castellano.";
 
         return new AccionAdmin(
                 PUBLICAR_NOVEDADES,
@@ -372,12 +379,54 @@ public class ConectorVbstats implements ConectorApp {
                                         + "que la versión salga.",
                                 List.of(
                                         new AccionAdmin.Campo.Opcion("publicada", "Publicada", "La app la enseña"),
-                                        new AccionAdmin.Campo.Opcion("oculta", "Oculta", "Guardada sin enseñar")))));
+                                        new AccionAdmin.Campo.Opcion("oculta", "Oculta", "Guardada sin enseñar")))),
+                // Sin clave de traducción no se enseña el botón: un botón que solo
+                // sabe contestar «no está configurado» estorba más que ayuda.
+                traduccion.configurado()
+                        ? new AccionAdmin.Asistente("Traducir al resto de idiomas",
+                                "Rellena inglés, francés y portugués con lo escrito en castellano. "
+                                        + "Se puede repasar y corregir antes de publicar.")
+                        : null);
     }
 
     /** Un área de texto que se puede dejar vacía; los constructores de {@link AccionAdmin.Campo} son todos obligatorios. */
     private AccionAdmin.Campo opcional(String clave, String etiqueta, String ayuda) {
         return new AccionAdmin.Campo(clave, etiqueta, AccionAdmin.Campo.Tipo.AREA, false, 900, ayuda, List.of());
+    }
+
+    /**
+     * Lo que va a las tiendas es una app de voleibol, y el traductor lo tiene que
+     * saber: sin esta línea, «posición», «set» o «recepción» salen traducidos por
+     * su acepción común y no por la del deporte.
+     */
+    private static final String CONTEXTO_NOVEDADES = """
+            VBStats, una app móvil de estadísticas de voleibol en directo. Las líneas son la lista de \
+            novedades que la app enseña una sola vez después de actualizarse, cada una un titular corto \
+            que se lee solo, sin explicación debajo. Vocabulario de voleibol y de app móvil.""";
+
+    @Override
+    public Sugerencia asistir(String accionId, Map<String, Object> parametros, String emailAdmin) {
+        if (!PUBLICAR_NOVEDADES.equals(accionId)) {
+            return Sugerencia.error("VBStats no sabe rellenar '" + accionId + "'");
+        }
+
+        // Se parsea con las mismas reglas que al publicar: si lo escrito no vale
+        // para guardarse, tampoco se manda a traducir. Así el error que sale es
+        // el de verdad («esa línea no cabe») y no un «no se pudo traducir».
+        List<String> titulares = NovedadesVbstats.titulares(texto(parametros, "es"));
+        if (titulares.isEmpty()) {
+            return Sugerencia.error("Escribe primero las novedades en castellano");
+        }
+
+        var resultado = traduccion.traducir(titulares, CONTEXTO_NOVEDADES, NovedadesVbstats.MAXIMO_TITULAR);
+        if (!resultado.correcto()) {
+            return Sugerencia.error(resultado.mensaje());
+        }
+
+        Map<String, String> valores = new java.util.LinkedHashMap<>();
+        resultado.porIdioma().forEach((idioma, lineas) -> valores.put(idioma, String.join("\n", lineas)));
+
+        return Sugerencia.de(resultado.mensaje(), valores);
     }
 
     private ResultadoAccion publicarNovedades(Map<String, Object> parametros, String emailAdmin) {

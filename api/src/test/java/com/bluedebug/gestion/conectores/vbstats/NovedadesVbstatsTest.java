@@ -144,6 +144,19 @@ class NovedadesVbstatsTest {
     }
 
     @Test
+    @DisplayName("lo que se manda a traducir va sin el icono delante")
+    void titularesSinIcono() {
+        var titulares = NovedadesVbstats.titulares("""
+                mejora | Copia una posición a todas las demás
+                Seguimiento de equipos en el inicio
+                """);
+
+        assertEquals(2, titulares.size());
+        assertEquals("Copia una posición a todas las demás", titulares.get(0));
+        assertEquals("Seguimiento de equipos en el inicio", titulares.get(1));
+    }
+
+    @Test
     @DisplayName("una línea con icono y sin texto se rechaza")
     void iconoSinTexto() {
         assertThrows(PeticionInvalida.class, () -> NovedadesVbstats.preparar(json, escrito("mejora |", "", "", "")));

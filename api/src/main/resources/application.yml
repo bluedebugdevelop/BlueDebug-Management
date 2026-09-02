@@ -45,6 +45,13 @@ bluedebug:
   cache:
     segundos: ${BLUEDEBUG_CACHE_SEGUNDOS:60}
 
+  # Traducir al resto de idiomas lo que se escribe en castellano en los
+  # formularios. Sin clave, el panel funciona igual: los campos se rellenan a
+  # mano, que es como se hacía antes de que esto existiera.
+  traduccion:
+    clave: ${ANTHROPIC_API_KEY:}
+    modelo: ${BLUEDEBUG_TRADUCCION_MODELO:claude-opus-5}
+
   seguridad:
     # Client id de OAuth del proyecto de Google. No es secreto: viaja al navegador.
     google-client-id: ${BLUEDEBUG_GOOGLE_CLIENT_ID:}

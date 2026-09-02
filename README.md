@@ -123,6 +123,7 @@ Todas en `.env.example`. Copia ese fichero a `api/.env` para desarrollo local
 | `BLUEDEBUG_VBSTATS_STRIPE` | Los ingresos | Sin pestaña de ingresos |
 | `BLUEDEBUG_VBSTATS_FIREBASE` | Notificaciones push (FCM) | No se pueden mandar avisos |
 | `BLUEDEBUG_CVO_FIREBASE` | Firestore del club | CVO sale apagada |
+| `ANTHROPIC_API_KEY` | Traducir a en/fr/pt lo escrito en castellano | El botón de traducir no aparece; los idiomas se escriben a mano |
 
 El secreto se genera con:
 

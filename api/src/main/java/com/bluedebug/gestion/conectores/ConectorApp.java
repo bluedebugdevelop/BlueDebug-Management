@@ -88,6 +88,20 @@ public interface ConectorApp {
         return ResultadoAccion.error("Esta aplicación no tiene acciones");
     }
 
+    /**
+     * Propone valores para el formulario de una acción, sin ejecutarla.
+     *
+     * Solo se llama si la acción declaró un {@link AccionAdmin.Asistente}. No
+     * escribe nada en ninguna parte —para eso está {@link #ejecutar}, que es lo
+     * único que se audita—: devuelve texto que el front mete en los campos y que
+     * quien está delante puede corregir antes de guardar.
+     */
+    default com.bluedebug.gestion.conectores.modelo.Sugerencia asistir(
+            String accionId, Map<String, Object> parametros, String emailAdmin) {
+        return com.bluedebug.gestion.conectores.modelo.Sugerencia.error(
+                "Esta acción no tiene nada que rellenar sola");
+    }
+
     /** Da de baja o borra una cuenta. Solo se llama si se declaró BORRAR_USUARIOS. */
     default ResultadoAccion borrarUsuario(String usuarioId, String emailAdmin) {
         return ResultadoAccion.error("Esta aplicación no permite borrar cuentas desde el panel");

@@ -24,6 +24,7 @@
     <stripe.version>28.2.0</stripe.version>
     <google.api.client.version>2.7.1</google.api.client.version>
     <google.auth.version>1.30.1</google.auth.version>
+    <anthropic.version>2.34.0</anthropic.version>
   </properties>
 
   <!--
@@ -129,6 +130,19 @@
       <groupId>com.stripe</groupId>
       <artifactId>stripe-java</artifactId>
       <version>${stripe.version}</version>
+    </dependency>
+
+    <!--
+      Traducir a en/fr/pt lo que se escribe en castellano en los formularios.
+
+      Es una dependencia opcional de hecho: sin ANTHROPIC_API_KEY el servicio se
+      queda apagado y los campos se rellenan a mano, igual que antes. Nada del
+      panel depende de que esté configurada.
+    -->
+    <dependency>
+      <groupId>com.anthropic</groupId>
+      <artifactId>anthropic-java</artifactId>
+      <version>${anthropic.version}</version>
     </dependency>
 
     <dependency>

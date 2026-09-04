@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core'
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  untracked,
+} from '@angular/core'
 import { FormsModule } from '@angular/forms'
 import { firstValueFrom } from 'rxjs'
 
@@ -164,6 +174,12 @@ import { Icono } from './icono'
   `,
   styles: [
     `
+      /* Para que al traerlo a la vista no quede pegado al borde de la ventana. */
+      :host {
+        display: block;
+        scroll-margin-top: 1rem;
+      }
+
       .formulario {
         padding: 1.35rem 1.5rem 1.5rem;
       }
@@ -299,9 +315,29 @@ export class FormularioGasto {
   protected readonly guardando = signal(false)
   protected readonly error = signal<string | null>(null)
 
-  ngOnInit(): void {
-    const previo = this.gasto()
+  private readonly host = inject(ElementRef<HTMLElement>)
 
+  constructor() {
+    /*
+      Los campos se rellenan en un EFECTO y no en ngOnInit, y la diferencia no es
+      de estilo: ngOnInit corre una sola vez, al crear el componente.
+
+      Cuando el formulario ya está abierto y se pulsa «corregir» en otra fila, el
+      componente NO se vuelve a crear —el @if de la página sigue siendo verdad—,
+      así que ngOnInit no corría otra vez y los campos se quedaban con el gasto
+      anterior. El `id` que se manda al guardar sí venía del gasto nuevo, con lo
+      que el resultado era guardar los datos de un gasto encima de otro. Sin
+      aviso, y con las dos filas en pantalla para verlo demasiado tarde.
+
+      Con el efecto, cambiar de gasto recarga los campos.
+    */
+    effect(() => {
+      this.rellenar(this.gasto())
+      this.traerAlaVista()
+    })
+  }
+
+  private rellenar(previo: Gasto | null): void {
     if (previo) {
       this.concepto.set(previo.concepto)
       // La fecha llega ISO completa o no, según el motor; el input type=date solo
@@ -315,14 +351,52 @@ export class FormularioGasto {
       this.recurrencia.set(previo.recurrencia)
       this.proveedor.set(previo.proveedor ?? '')
       this.nota.set(previo.nota ?? '')
+      this.error.set(null)
       return
     }
 
     // En un alta, el pagador más probable es quien está delante. No se puede
     // saber —la sesión va por correo y los socios son nombres— así que se deja
     // el primero puesto y que lo cambie quien no sea.
-    this.pagadoPor.set(this.catalogo().socios[0] ?? '')
-    this.categoria.set(this.catalogo().categorias[0]?.valor ?? 'OTROS')
+    //
+    // El catálogo se lee sin registrar dependencia: este efecto tiene que
+    // dispararse cuando cambia el GASTO, no cuando el padre reemplaza el
+    // catálogo, que borraría lo que se esté escribiendo.
+    const catalogo = untracked(() => this.catalogo())
+    this.concepto.set('')
+    this.fecha.set(hoy())
+    this.importe.set(null)
+    this.iva.set(null)
+    this.app.set('')
+    this.recurrencia.set('UNICO')
+    this.proveedor.set('')
+    this.nota.set('')
+    this.error.set(null)
+    this.pagadoPor.set(catalogo.socios[0] ?? '')
+    this.categoria.set(catalogo.categorias[0]?.valor ?? 'OTROS')
+  }
+
+  /**
+   * Lleva la pantalla hasta el formulario.
+   *
+   * El formulario vive arriba de la página y los botones de corregir están en la
+   * tabla, que puede quedar a dos mil píxeles de allí. Sin esto, pulsar
+   * «corregir» abría el formulario fuera de la vista y desde abajo parecía que el
+   * botón no hacía nada — que es exactamente como se describió el fallo.
+   *
+   * Con `smooth` se ve el desplazamiento, así que queda claro que la página te
+   * ha llevado a otro sitio en vez de dar un salto seco.
+   *
+   * `block: 'start'` y no 'center': el formulario mide más de mil píxeles, más
+   * que la pantalla, así que centrarlo deja la cabecera y los primeros campos
+   * por encima del borde. Alineado arriba se ve por dónde empieza.
+   */
+  private traerAlaVista(): void {
+    const elemento = this.host.nativeElement as HTMLElement
+    elemento.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // El foco en el primer campo confirma que ha pasado algo y deja escribir sin
+    // tener que ir a buscar el cursor con el ratón.
+    elemento.querySelector<HTMLInputElement>('#concepto')?.focus({ preventScroll: true })
   }
 
   /**

@@ -74,6 +74,17 @@ posición pondría el titular equivocado en el idioma equivocado.
 | App | Por dónde entra | Qué expone |
 |---|---|---|
 | VBStats | MySQL + Stripe + FCM | cuentas, suscripciones, ingresos, notificaciones, novedades de versión |
-| CV Oviedo | Firebase | fichas del club, equipos, roles, avisos |
+| CV Oviedo | Firebase | altas y fichas del club, equipos, plantillas, roles, contraseñas, avisos |
+
+**Del club se administra todo desde aquí**, no solo se mira: dar de alta a alguien
+—cuenta de Auth y ficha, con la contraseña en pantalla—, crear equipos, mover
+gente entre plantillas y archivar la temporada. Y sin una pantalla propia: son
+nueve `AccionAdmin` declaradas en el conector. La app del club conserva las
+mismas pantallas; esto no las sustituye.
+
+Ojo con una cosa al tocar ese conector: **el panel escribe con el Admin SDK, que
+no pasa por las reglas de Firestore.** Las comprobaciones que en la app hacen las
+reglas —que quede al menos un rol, que el club no se quede sin admins, que un
+jugador no acabe en la lista de entrenadores— hay que repetirlas a mano en Java.
 
 Está pensado para que meter la tercera y la décima no sea rehacer nada.

@@ -4,9 +4,13 @@ import com.bluedebug.gestion.conectores.modelo.Rango;
 import com.bluedebug.gestion.conectores.modelo.UsuarioApp;
 import com.google.cloud.Timestamp;
 import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.FieldValue;
 import com.google.cloud.firestore.QueryDocumentSnapshot;
+import com.google.cloud.firestore.WriteBatch;
 import com.google.firebase.auth.ExportedUserRecord;
+import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.auth.ListUsersPage;
+import com.google.firebase.auth.UserRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
@@ -304,7 +308,7 @@ public class RepositorioCvo {
             }
             try {
                 doc.getReference()
-                        .update("tokensPush", com.google.cloud.firestore.FieldValue.arrayRemove(suyos.toArray()))
+                        .update("tokensPush", FieldValue.arrayRemove(suyos.toArray()))
                         .get();
                 borrados += suyos.size();
             } catch (InterruptedException e) {
@@ -331,7 +335,7 @@ public class RepositorioCvo {
         fuente.firestore().collection("usuarios").document(uid)
                 .update(Map.of(
                         "roles", roles,
-                        "rol", com.google.cloud.firestore.FieldValue.delete()))
+                        "rol", FieldValue.delete()))
                 .get();
     }
 
@@ -362,6 +366,176 @@ public class RepositorioCvo {
             log.warn("CVO: no se pudo leer la ficha {}: {}", uid, e.getMessage());
             return Map.of();
         }
+    }
+
+    /**
+     * Lo mínimo de cada ficha para poder elegirla en un desplegable.
+     *
+     * Existe aparte de {@link #usuarios()} porque los formularios de las acciones
+     * se construyen en cada carga de la pantalla, y {@code usuarios()} arrastra
+     * una vuelta entera por Firebase Auth para sacar los últimos accesos. Para
+     * pintar «Nombre — correo» eso no hace falta.
+     */
+    public record Ficha(String uid, String nombre, String email, boolean activo) {}
+
+    public List<Ficha> fichas() {
+        List<Ficha> fichas = new ArrayList<>();
+        for (QueryDocumentSnapshot doc : documentos("usuarios")) {
+            fichas.add(new Ficha(
+                    doc.getId(),
+                    doc.getString("nombre"),
+                    doc.getString("email"),
+                    Boolean.TRUE.equals(doc.getBoolean("activo"))));
+        }
+        fichas.sort((a, b) -> String.valueOf(a.nombre()).compareToIgnoreCase(String.valueOf(b.nombre())));
+        return fichas;
+    }
+
+    /** Si ya hay una ficha en el club con ese correo. */
+    public boolean emailConFicha(String email) {
+        String buscado = email.trim().toLowerCase();
+        return documentos("usuarios").stream()
+                .anyMatch(d -> buscado.equalsIgnoreCase(String.valueOf(d.getString("email"))));
+    }
+
+    // --------------------------------------------------------- altas y fichas
+
+    /**
+     * El uid de una cuenta de Firebase Auth por su correo, o null si no existe.
+     *
+     * Se pregunta ANTES de crear nada porque hay un caso que pasa de verdad en el
+     * club: alguien se registró por su cuenta, se quedó sin ficha —«registrados
+     * sin ficha», la cifra del resumen— y meses después un admin le da el alta.
+     * Esa persona ya tiene cuenta, y crearle otra con el mismo correo es
+     * imposible: hay que darle la ficha que le falta y dejarle su contraseña.
+     */
+    public String uidPorEmail(String email) {
+        if (fuente.auth() == null) {
+            return null;
+        }
+        try {
+            return fuente.auth().getUserByEmail(email).getUid();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public boolean tieneFicha(String uid) {
+        return !ficha(uid).isEmpty();
+    }
+
+    /** Crea la cuenta de Auth y devuelve su uid. */
+    public String crearCuenta(String nombre, String email, String clave) throws FirebaseAuthException {
+        UserRecord.CreateRequest peticion = new UserRecord.CreateRequest()
+                .setEmail(email)
+                .setPassword(clave)
+                .setDisplayName(nombre)
+                .setEmailVerified(false)
+                .setDisabled(false);
+        return fuente.auth().createUser(peticion).getUid();
+    }
+
+    /**
+     * Borra una cuenta de Auth.
+     *
+     * Solo se usa para deshacer un alta a medias: si la cuenta se crea y luego
+     * falla la ficha, la persona se queda con credenciales que no abren nada y el
+     * correo ocupado para siempre. Una baja de club NO pasa por aquí: eso es
+     * {@link #cambiarAlta}, que conserva el histórico.
+     */
+    public void borrarCuenta(String uid) throws FirebaseAuthException {
+        fuente.auth().deleteUser(uid);
+    }
+
+    public void cambiarClave(String uid, String clave) throws FirebaseAuthException {
+        fuente.auth().updateUser(new UserRecord.UpdateRequest(uid).setPassword(clave));
+    }
+
+    /** Escribe la ficha del club. La cuenta de Auth tiene que existir ya. */
+    public void crearFicha(String uid, Map<String, Object> datos)
+            throws ExecutionException, InterruptedException {
+        Map<String, Object> ficha = new LinkedHashMap<>(datos);
+        ficha.put("activo", true);
+        ficha.put("tokensPush", List.of());
+        ficha.put("creadoEn", FieldValue.serverTimestamp());
+        fuente.firestore().collection("usuarios").document(uid).set(ficha).get();
+    }
+
+    public void actualizarFicha(String uid, Map<String, Object> cambios)
+            throws ExecutionException, InterruptedException {
+        fuente.firestore().collection("usuarios").document(uid).update(cambios).get();
+    }
+
+    // ----------------------------------------------------------- escribir equipos
+
+    /** Crea un equipo vacío y devuelve su id. */
+    public String crearEquipo(Map<String, Object> datos) throws ExecutionException, InterruptedException {
+        Map<String, Object> equipo = new LinkedHashMap<>(datos);
+        // Las dos plantillas nacen vacías y el enlace con la web se hace después,
+        // a mano, desde la ficha del equipo: ver `slugWeb` en el modelo de la app.
+        equipo.put("entrenadores", List.of());
+        equipo.put("jugadores", List.of());
+        equipo.put("archivado", false);
+        equipo.put("creadoEn", FieldValue.serverTimestamp());
+        return fuente.firestore().collection("equipos").add(equipo).get().getId();
+    }
+
+    public void actualizarEquipo(String id, Map<String, Object> cambios)
+            throws ExecutionException, InterruptedException {
+        fuente.firestore().collection("equipos").document(id).update(cambios).get();
+    }
+
+    public Map<String, Object> equipo(String id) {
+        try {
+            DocumentSnapshot doc = fuente.firestore().collection("equipos").document(id).get().get();
+            if (!doc.exists()) {
+                return Map.of();
+            }
+            Map<String, Object> datos = new LinkedHashMap<>(doc.getData() == null ? Map.of() : doc.getData());
+            datos.put("id", doc.getId());
+            return datos;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Map.of();
+        } catch (Exception e) {
+            log.warn("CVO: no se pudo leer el equipo {}: {}", id, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    // --------------------------------------------------------------- plantillas
+
+    /**
+     * Mete a alguien en un equipo, por los dos lados y de una vez.
+     *
+     * La pertenencia vive por duplicado a propósito —en el equipo y en la ficha—
+     * porque las reglas de Firestore necesitan la lista del equipo para decidir
+     * sin leer otro documento, y la app necesita la de la ficha para saber a qué
+     * equipos entrar. Las dos caras se escriben en el MISMO lote: si se hicieran
+     * por separado y fallara la segunda, quedaría un jugador que el equipo cree
+     * tener pero al que las reglas le niegan el chat.
+     */
+    public void anadirAEquipo(String equipoId, String uid, boolean comoEntrenador)
+            throws ExecutionException, InterruptedException {
+        WriteBatch lote = fuente.firestore().batch();
+        lote.update(fuente.firestore().collection("equipos").document(equipoId),
+                comoEntrenador ? "entrenadores" : "jugadores", FieldValue.arrayUnion(uid));
+        lote.update(fuente.firestore().collection("usuarios").document(uid),
+                "equipos", FieldValue.arrayUnion(equipoId));
+        lote.commit().get();
+    }
+
+    public void quitarDeEquipo(String equipoId, String uid)
+            throws ExecutionException, InterruptedException {
+        WriteBatch lote = fuente.firestore().batch();
+        // Se quita de las dos listas sin mirar en cuál estaba: `arrayRemove` con un
+        // valor que no está no hace nada, y así no hace falta leer el equipo antes.
+        lote.update(fuente.firestore().collection("equipos").document(equipoId), Map.of(
+                "entrenadores", FieldValue.arrayRemove(uid),
+                "jugadores", FieldValue.arrayRemove(uid)));
+        lote.update(fuente.firestore().collection("usuarios").document(uid),
+                "equipos", FieldValue.arrayRemove(equipoId));
+        lote.commit().get();
     }
 
     // ------------------------------------------------------------------- apoyo

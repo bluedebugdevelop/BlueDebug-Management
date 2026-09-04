@@ -145,7 +145,7 @@ export interface OpcionCampo {
 export interface CampoAccion {
   clave: string
   etiqueta: string
-  tipo: 'TEXTO' | 'AREA' | 'SELECCION' | 'NUMERO' | 'INTERRUPTOR'
+  tipo: 'TEXTO' | 'AREA' | 'SELECCION' | 'MULTISELECCION' | 'NUMERO' | 'INTERRUPTOR'
   obligatorio: boolean
   maximo: number
   ayuda: string | null
@@ -160,6 +160,8 @@ export interface AccionAdmin {
   peligrosa: boolean
   textoBoton: string
   campos: CampoAccion[]
+  /** Epígrafe bajo el que se agrupa en la pestaña, o null para dejarla suelta. */
+  grupo: string | null
 }
 
 export interface ResultadoAccion {

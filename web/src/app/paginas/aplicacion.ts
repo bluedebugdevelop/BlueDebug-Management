@@ -191,18 +191,23 @@ type Pestana = 'resumen' | 'usuarios' | 'ingresos' | 'acciones' | 'detalle'
           }
 
           @case ('acciones') {
-            <div class="acciones">
-              @for (accion of acciones(); track accion.id) {
-                <bd-accion
-                  [appId]="id()"
-                  [accion]="accion"
-                  [color]="datos.app.color"
-                  (hecho)="recargar()"
-                />
-              } @empty {
-                <p class="vacia">Esta aplicación no tiene acciones configuradas</p>
+            @for (grupo of accionesAgrupadas(); track grupo.nombre) {
+              @if (grupo.nombre) {
+                <h3 class="titulo-seccion">{{ grupo.nombre }}</h3>
               }
-            </div>
+              <div class="acciones">
+                @for (accion of grupo.acciones; track accion.id) {
+                  <bd-accion
+                    [appId]="id()"
+                    [accion]="accion"
+                    [color]="datos.app.color"
+                    (hecho)="recargar()"
+                  />
+                }
+              </div>
+            } @empty {
+              <p class="vacia">Esta aplicación no tiene acciones configuradas</p>
+            }
           }
 
           @case ('detalle') {
@@ -352,6 +357,7 @@ type Pestana = 'resumen' | 'usuarios' | 'ingresos' | 'acciones' | 'detalle'
         grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
         gap: 1rem;
         align-items: start;
+        margin-bottom: 1.75rem;
       }
 
       .tablas {
@@ -469,6 +475,31 @@ export class PaginaAplicacion {
     if (this.tablas().length) lista.push({ clave: 'detalle', nombre: 'Detalle' })
 
     return lista
+  })
+
+  /**
+   * Las acciones repartidas por epígrafes, en el orden en que las declara el
+   * conector.
+   *
+   * Hizo falta cuando una app pasó de tener una acción a tener nueve: sin
+   * epígrafes, administrar el club era una pared de formularios iguales donde
+   * había que leerlos todos para encontrar el que se buscaba. Un conector que no
+   * declare grupo —VBStats hoy— cae en uno sin título y se pinta como siempre.
+   */
+  protected readonly accionesAgrupadas = computed(() => {
+    const grupos: { nombre: string; acciones: AccionAdmin[] }[] = []
+
+    for (const accion of this.acciones()) {
+      const nombre = accion.grupo ?? ''
+      const grupo = grupos.find((g) => g.nombre === nombre)
+      if (grupo) {
+        grupo.acciones.push(accion)
+      } else {
+        grupos.push({ nombre, acciones: [accion] })
+      }
+    }
+
+    return grupos
   })
 
   protected readonly puedeBorrar = computed(

@@ -123,6 +123,8 @@ Todas en `.env.example`. Copia ese fichero a `api/.env` para desarrollo local
 | `BLUEDEBUG_VBSTATS_STRIPE` | Los ingresos | Sin pestaña de ingresos |
 | `BLUEDEBUG_VBSTATS_FIREBASE` | Notificaciones push (FCM) | No se pueden mandar avisos |
 | `BLUEDEBUG_CVO_FIREBASE` | Firestore del club | CVO sale apagada |
+| `BLUEDEBUG_CONTABILIDAD_URL` | La base de datos de los gastos (Postgres o MySQL; vale la url de Railway tal cual) | La sección de Contabilidad sale apagada, explicando qué falta |
+| `BLUEDEBUG_SOCIOS` | Quién puede figurar como pagador de un gasto (nombres por comas) | Los tres socios de siempre |
 | `GEMINI_API_KEY` | Traducir a en/fr/pt lo escrito en castellano (motor **gratis**, el que se usa por defecto) | Se prueba con Anthropic, y si tampoco está, se publica solo en castellano |
 | `ANTHROPIC_API_KEY` | Lo mismo, con Claude. Solo hace falta si no hay clave de Gemini | Nada, mientras haya la de Gemini |
 
@@ -210,8 +212,16 @@ Escrito aquí para que no haya que descubrirlo por sorpresa:
   entera.
 - **La pantalla de Actividad se vacía en cada reinicio.** Los apuntes viven en la
   memoria del proceso. Lo que sí perdura es el log del servicio, donde cada
-  acción queda escrita con el correo de quien la lanzó. El sitio donde enchufar
-  una tabla de verdad es `RegistroAuditoria`, y no hay que tocar nada más.
+  acción queda escrita con el correo de quien la lanzó. Desde que la contabilidad
+  tiene base de datos habría dónde guardarlos, pero no se hace: la auditoría cubre
+  todas las apps y atarla a una sección que puede no estar configurada dejaría sin
+  registro al resto. El sitio donde enchufarla es `RegistroAuditoria`.
+- **La contabilidad no emite ni cuadra nada.** Es un registro de gastos y un
+  reparto entre socios, no un libro contable: no hay ingresos, ni asientos, ni
+  modelos trimestrales, ni exportación para la gestoría. El IVA se apunta porque
+  hace falta saberlo, no porque el panel lo liquide. El reparto es siempre a
+  partes iguales; si algún día las participaciones dejan de serlo, el único
+  fichero que hay que tocar es `Liquidacion`.
 - **«Accesos por día» no es exactamente eso.** Ninguna de las dos apps guarda un
   historial de accesos, solo el último de cada cuenta. Para los días recientes se
   parece bastante; hacia atrás se queda corto. Está dicho en la etiqueta de la

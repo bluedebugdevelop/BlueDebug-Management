@@ -18,10 +18,15 @@ import java.util.List;
  * poder enseñar «lo último que hiciste» en la pantalla sin ir a rebuscar en los
  * logs de Railway.
  *
- * Lo de memoria se pierde al reiniciar, y está bien que así sea mientras el panel
- * no tenga base de datos propia: prometer un historial permanente que en realidad
- * se borra cada despliegue sería peor que no tenerlo. Cuando haga falta de
- * verdad, el sitio donde enchufar una tabla es este y no hay que tocar nada más.
+ * Lo de memoria se pierde al reiniciar, y está bien que así sea: prometer un
+ * historial permanente que en realidad se borra cada despliegue sería peor que no
+ * tenerlo. Y se dice en la propia pantalla de Actividad.
+ *
+ * Desde que existe la contabilidad hay una base de datos del panel donde cabría
+ * guardar esto. No se hace, y es deliberado: la auditoría cubre TODAS las apps y
+ * atarla a una sección que puede no estar configurada dejaría sin registro al
+ * resto. Si algún día se quiere permanente, el sitio donde enchufar la tabla es
+ * este —y habría que quitar la nota de la pantalla, que dice lo contrario.
  */
 @Component
 public class RegistroAuditoria {

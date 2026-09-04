@@ -206,3 +206,94 @@ export interface Arranque {
   apps: AppEnMenu[]
   periodos: number[]
 }
+
+/* ----------------------------------------------------------- contabilidad */
+
+export interface Gasto {
+  id: string
+  fecha: string
+  concepto: string
+  categoria: string
+  proveedor: string | null
+  importe: number
+  iva: number
+  pagadoPor: string
+  /** Id del conector al que se imputa, o null si es gasto de empresa. */
+  app: string | null
+  recurrencia: 'UNICO' | 'MENSUAL' | 'ANUAL'
+  nota: string | null
+  creadoPor: string
+  creadoEn: string
+}
+
+/** Lo que se manda al guardar. Sin id ni rastro de quién lo apuntó: eso lo pone el servidor. */
+export interface AltaGasto {
+  fecha: string
+  concepto: string
+  categoria: string
+  proveedor: string | null
+  importe: number
+  iva: number
+  pagadoPor: string
+  app: string | null
+  recurrencia: string
+  nota: string | null
+}
+
+export interface OpcionCategoria {
+  valor: string
+  etiqueta: string
+  color: string
+}
+
+export interface OpcionRecurrencia {
+  valor: string
+  etiqueta: string
+}
+
+export interface AppImputable {
+  id: string
+  nombre: string
+  color: string
+}
+
+export interface CatalogoContabilidad {
+  configurado: boolean
+  motivo: string | null
+  socios: string[]
+  categorias: OpcionCategoria[]
+  recurrencias: OpcionRecurrencia[]
+  apps: AppImputable[]
+  anios: number[]
+}
+
+export interface SaldoSocio {
+  socio: string
+  pagado: number
+  /** Lo puesto menos lo que le tocaba. En positivo le deben; en negativo, debe. */
+  saldo: number
+}
+
+export interface AjusteLiquidacion {
+  de: string
+  a: string
+  importe: number
+}
+
+export interface Liquidacion {
+  total: number
+  porCabeza: number
+  saldos: SaldoSocio[]
+  ajustes: AjusteLiquidacion[]
+}
+
+export interface ResumenContabilidad {
+  anio: number
+  gastos: Gasto[]
+  metricas: Metrica[]
+  porMes: Serie
+  porCategoria: Reparto
+  porSocio: Reparto
+  porApp: Reparto
+  liquidacion: Liquidacion
+}

@@ -5,14 +5,18 @@ import { Observable, catchError, throwError } from 'rxjs'
 import type {
   AccionAdmin,
   Administrador,
+  AltaGasto,
   AppEnMenu,
   Apunte,
   Arranque,
+  CatalogoContabilidad,
   EdicionRol,
+  Gasto,
   Ingresos,
   PanelGeneral,
   ResultadoAccion,
   ResumenApp,
+  ResumenContabilidad,
   Tabla,
   UsuarioApp,
   UsuarioGlobal,
@@ -66,6 +70,33 @@ export class Api {
 
   actividad(): Observable<Apunte[]> {
     return this.get('/api/panel/auditoria')
+  }
+
+  // ------------------------------------------------------------- contabilidad
+
+  catalogoContabilidad(): Observable<CatalogoContabilidad> {
+    return this.get('/api/contabilidad/arranque')
+  }
+
+  /** @param anio el año que se mira. Un 0 los trae todos. */
+  contabilidad(anio: number): Observable<ResumenContabilidad> {
+    return this.get(`/api/contabilidad/resumen?anio=${anio}`)
+  }
+
+  crearGasto(gasto: AltaGasto): Observable<Gasto> {
+    return this.post('/api/contabilidad/gastos', gasto)
+  }
+
+  editarGasto(id: string, gasto: AltaGasto): Observable<Gasto> {
+    return this.http
+      .put<Gasto>(`/api/contabilidad/gastos/${encodeURIComponent(id)}`, gasto, this.opciones)
+      .pipe(catchError(traducirError))
+  }
+
+  borrarGasto(id: string): Observable<Gasto> {
+    return this.http
+      .delete<Gasto>(`/api/contabilidad/gastos/${encodeURIComponent(id)}`, this.opciones)
+      .pipe(catchError(traducirError))
   }
 
   // --------------------------------------------------------------------- apps

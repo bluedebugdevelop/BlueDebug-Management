@@ -22,7 +22,12 @@ import type { Metrica } from '../nucleo/tipos'
       <p class="valor">{{ texto() }}</p>
 
       <div class="pie">
-        @if (metrica().variacion !== null) {
+        <!-- Comparación suelta (!= null) y no estricta, a propósito: el backend
+             serializa omitiendo los nulos, así que una métrica sin variación no
+             trae el campo y en JavaScript llega como undefined. Con la estricta
+             pasaba el filtro y salía un «▲ 0 %» inventado en cada tarjeta que no
+             compara con ningún periodo anterior. -->
+        @if (metrica().variacion != null) {
           <span class="variacion" [class.sube]="sube()" [class.baja]="!sube()">
             {{ sube() ? '▲' : '▼' }} {{ variacion() }}
           </span>

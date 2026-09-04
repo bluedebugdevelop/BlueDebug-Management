@@ -99,6 +99,19 @@ bluedebug:
     firebase-json: ${BLUEDEBUG_CVO_FIREBASE:}
     web-url: ${BLUEDEBUG_CVO_WEB:https://clubvoleiboloviedo.com}
 
+  # Los gastos de la empresa. Es la única base de datos PROPIA del panel: las de
+  # arriba son de las apps y se leen prestadas. Vale un Postgres o un MySQL, y
+  # la tabla se crea sola la primera vez. Sin url, la sección sale apagada y
+  # explicando qué falta; el resto del panel funciona igual.
+  contabilidad:
+    url: ${BLUEDEBUG_CONTABILIDAD_URL:}
+    usuario: ${BLUEDEBUG_CONTABILIDAD_USUARIO:}
+    clave: ${BLUEDEBUG_CONTABILIDAD_CLAVE:}
+    # Quiénes pueden figurar como pagadores. Lista cerrada a propósito: con texto
+    # libre, «Adrián» y «adrian» serían dos socios distintos y el reparto no
+    # cuadraría. Cambiar un nombre aquí NO cambia los gastos ya apuntados.
+    socios: ${BLUEDEBUG_SOCIOS:Adrián Estrada,Diego Charro,Rubén Rubio}
+
 logging:
   level:
     root: INFO

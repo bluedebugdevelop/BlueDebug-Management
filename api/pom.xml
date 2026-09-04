@@ -92,6 +92,22 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!--
+      La contabilidad, que es la única base de datos propia del panel.
+
+      Va el driver de Postgres además del de MySQL porque esa base la elige quien
+      despliega: lo natural es añadirla en Railway, donde el botón por defecto da
+      un Postgres, pero también vale reaprovechar el MySQL que ya hay. El paquete
+      `contabilidad` no usa sintaxis de ningún motor, así que llevar los dos
+      drivers (dos megas, sin código que los importe) es lo que hace que esa
+      decisión sea de una variable de entorno y no de una recompilación.
+    -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
     <!-- Sesion propia del panel: JWT firmado en una cookie HttpOnly. -->
     <dependency>
       <groupId>io.jsonwebtoken</groupId>
@@ -148,6 +164,22 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+      Una base de datos de verdad para probar la contabilidad.
+
+      Es el único módulo del panel que ESCRIBE en una base propia, así que es el
+      único donde vale la pena tener una: con mocks no se descubre que un tipo de
+      columna no existe en el motor real ni que un DECIMAL vuelve con otra escala.
+      El DDL y las consultas están escritos sin sintaxis de ningún motor
+      concreto —Postgres y MySQL en producción— y H2 los acepta igual, que es
+      precisamente lo que la prueba confirma.
+    -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

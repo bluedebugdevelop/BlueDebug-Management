@@ -42,6 +42,11 @@ export const RUTAS: Routes = [
         title: 'Actividad · BlueDebug Management',
       },
       {
+        path: 'contabilidad',
+        loadComponent: () => import('./paginas/contabilidad').then((m) => m.PaginaContabilidad),
+        title: 'Contabilidad · BlueDebug Management',
+      },
+      {
         path: 'ajustes',
         loadComponent: () => import('./paginas/ajustes').then((m) => m.PaginaAjustes),
         title: 'Ajustes · BlueDebug Management',

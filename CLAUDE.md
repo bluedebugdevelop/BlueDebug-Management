@@ -31,6 +31,7 @@ api/src/main/java/com/bluedebug/gestion/
 │   ├── modelo/                   <- lenguaje común: usuarios, métricas, series...
 │   ├── vbstats/                  <- MySQL + Stripe + FCM
 │   └── cvo/                      <- Firebase
+├── contabilidad/                 <- gastos de la empresa (no es un conector)
 ├── panel/
 ├── seguridad/
 └── comun/
@@ -75,6 +76,21 @@ posición pondría el titular equivocado en el idioma equivocado.
 |---|---|---|
 | VBStats | MySQL + Stripe + FCM | cuentas, suscripciones, ingresos, notificaciones, novedades de versión |
 | CV Oviedo | Firebase | altas y fichas del club, equipos, plantillas, roles, contraseñas, avisos |
+
+Y además, **los gastos de la propia empresa**: `contabilidad/`, que no es un
+conector porque no hay ninguna app detrás. Vive al lado de `panel/` y usa el
+mismo lenguaje de `conectores/modelo` (`Metrica`, `Serie`, `Reparto`) para que
+el front reutilice las gráficas del panel general. Es **la única base de datos
+propia del panel** —`BLUEDEBUG_CONTABILIDAD_URL`, Postgres o MySQL, tabla creada
+al vuelo— y por eso es el único sitio donde se escribe DDL; la de VBStats se abre
+en solo lectura a propósito. Sin esa variable la sección sale apagada y explica
+qué falta, como un conector sin credenciales.
+
+Dos cosas que ahí se hacen a mano y hay que respetar: el dinero es `BigDecimal`
+hasta el borde de la API (de estas sumas sale cuánto le debe cada socio a los
+otros, y un total con deriva de coma flotante es una cuenta mal hecha), y el
+**coste fijo mensual agrupa por concepto** quedándose con el último pago de cada
+uno — si no, doce recibos de Railway contarían doce veces el mismo coste.
 
 **Del club se administra todo desde aquí**, no solo se mira: dar de alta a alguien
 —cuenta de Auth y ficha, con la contraseña en pantalla—, crear equipos, mover

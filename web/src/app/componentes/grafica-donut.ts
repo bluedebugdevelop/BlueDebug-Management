@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core'
 
-import { colorDe, entero } from '../nucleo/formato'
+import { colorDe, dineroCorto, segunFormato } from '../nucleo/formato'
 import type { Reparto } from '../nucleo/tipos'
 
 /**
@@ -157,6 +157,15 @@ import type { Reparto } from '../nucleo/tipos'
 export class GraficaDonut {
   readonly reparto = input.required<Reparto>()
 
+  /**
+   * Cómo se escriben las cifras de la leyenda y del centro.
+   *
+   * Por defecto son cuentas de gente, que es lo que pide el panel general. La
+   * contabilidad reparte euros, y ahí un «1.240» a secas al lado de otro «310»
+   * no dice si son cuentas, apuntes o dinero.
+   */
+  readonly formato = input<'entero' | 'dinero' | 'porcentaje'>('entero')
+
   protected readonly RADIO = 45
 
   private readonly circunferencia = 2 * Math.PI * this.RADIO
@@ -165,7 +174,14 @@ export class GraficaDonut {
     this.reparto().trozos.reduce((suma, t) => suma + t.valor, 0),
   )
 
-  protected readonly totalTexto = computed(() => entero(this.total()))
+  /*
+    El total del centro va SIN decimales cuando son euros. Cabe justo: el hueco
+    del donut son unos 60 px de viewBox, y un «1.234,56 €» completo se sale por
+    los dos lados. Los céntimos exactos están en la leyenda, aquí al lado.
+  */
+  protected readonly totalTexto = computed(() =>
+    this.formato() === 'dinero' ? dineroCorto(this.total()) : segunFormato(this.total(), this.formato()),
+  )
 
   protected readonly trozos = computed(() => {
     const total = this.total()
@@ -190,7 +206,7 @@ export class GraficaDonut {
           pintado,
           resto: this.circunferencia - pintado,
           giro,
-          texto: entero(trozo.valor),
+          texto: segunFormato(trozo.valor, this.formato()),
           porcentaje: Math.round(parte * 100),
         }
       })

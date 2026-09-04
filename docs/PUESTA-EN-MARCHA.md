@@ -471,6 +471,8 @@ Logs**.
 | `BLUEDEBUG_VBSTATS_STRIPE` | No | Stripe → restringida, `Charges: Read` | Sin pestaña de ingresos |
 | `BLUEDEBUG_VBSTATS_FIREBASE` | No | Render → `FIREBASE_SERVICE_ACCOUNT_BASE64` | No se pueden mandar notificaciones |
 | `BLUEDEBUG_CVO_FIREBASE` | No | Firebase → cv-oviedo → Cuentas de servicio | CV Oviedo sale apagada |
+| `BLUEDEBUG_CONTABILIDAD_URL` | No | Railway → «+ New» → Database → Postgres → `DATABASE_PUBLIC_URL` | Contabilidad sale apagada explicando qué falta |
+| `BLUEDEBUG_SOCIOS` | No | Lo escribes tú, nombres por comas | Los tres socios de siempre |
 | `BLUEDEBUG_CACHE_SEGUNDOS` | No | Lo eliges tú; por defecto 60 | Nada |
 
 ---

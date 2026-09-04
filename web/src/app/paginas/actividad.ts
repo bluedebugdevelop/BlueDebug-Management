@@ -10,11 +10,16 @@ import type { Apunte } from '../nucleo/tipos'
  * Lo que se ha hecho desde el panel.
  *
  * Y hay que ser honesto con lo que esta pantalla es y lo que no: es la memoria
- * del proceso, no un registro permanente. Mientras el panel no tenga base de
- * datos propia, estos apuntes viven en memoria y se pierden cuando el contenedor
- * se reinicia —cada despliegue, sin ir más lejos—. Lo que sí perdura es el log
- * del servidor, donde cada acción queda escrita con nivel WARN y se puede buscar
- * meses después.
+ * del proceso, no un registro permanente. Estos apuntes viven en memoria y se
+ * pierden cuando el contenedor se reinicia —cada despliegue, sin ir más lejos—.
+ * Lo que sí perdura es el log del servidor, donde cada acción queda escrita con
+ * nivel WARN y se puede buscar meses después.
+ *
+ * Desde que existe la contabilidad hay una base de datos propia del panel donde
+ * cabría guardarlos. No se ha hecho: son cosas distintas y mezclarlas ataría el
+ * registro de todas las apps a que esté configurada una sección que puede no
+ * estarlo. Si algún día se decide, se cambia en RegistroAuditoria y esta nota
+ * hay que quitarla de la pantalla.
  *
  * Se dice en la propia pantalla, abajo, en vez de dejar que alguien confíe en un
  * historial que no está.
@@ -242,4 +247,7 @@ const NOMBRES: Record<string, string> = {
   'enviar-notificacion': 'Notificación enviada',
   'enviar-aviso': 'Aviso enviado',
   'cambiar-alta': 'Cambio de alta',
+  'alta-gasto': 'Gasto apuntado',
+  'editar-gasto': 'Gasto corregido',
+  'borrar-gasto': 'Gasto borrado',
 }

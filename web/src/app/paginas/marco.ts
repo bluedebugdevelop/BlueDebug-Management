@@ -41,6 +41,11 @@ import { Sesion } from '../nucleo/sesion'
             <bd-icono nombre="actividad" [tamano]="18" /> Actividad
           </a>
 
+          <p class="grupo">Empresa</p>
+          <a routerLink="/contabilidad" routerLinkActive="activo" (click)="menuAbierto.set(false)">
+            <bd-icono nombre="recibo" [tamano]="18" /> Contabilidad
+          </a>
+
           <p class="grupo">Aplicaciones</p>
           @for (item of sesion.apps(); track item.app.id) {
             <a
@@ -260,6 +265,15 @@ import { Sesion } from '../nucleo/sesion'
         padding: 2rem 2.25rem 3rem;
         max-width: 1400px;
         width: 100%;
+        /* Sin esto, el contenido puede ensanchar la página entera.
+           Una columna de rejilla mide por defecto lo que mida su contenido
+           MÍNIMO (min-width: auto), y ahí una tabla ancha no cuenta como algo
+           que se pueda encoger: la columna crece hasta caber la tabla y quien
+           hace scroll horizontal es la ventana, sacando la barra lateral de la
+           pantalla. Con min-width: 0 la columna se queda en su sitio y el
+           scroll lo hace la tabla dentro de su caja, que es lo que .marco-tabla
+           ya prepara. */
+        min-width: 0;
       }
 
       .hamburguesa,

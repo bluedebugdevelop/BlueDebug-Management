@@ -1,6 +1,7 @@
 package com.bluedebug.gestion.conectores.vbstats;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.BatchResponse;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Manda las notificaciones de VBStats por Firebase Cloud Messaging.
@@ -45,6 +47,9 @@ public class ServicioFcm {
 
     private final FirebaseApp app;
 
+    /** Por qué no se puede enviar, dicho para quien lo lee en el panel. Nulo si se puede. */
+    private String problema;
+
     public ServicioFcm(PropiedadesVbstats propiedades) {
         this.app = arrancar(propiedades);
     }
@@ -52,11 +57,28 @@ public class ServicioFcm {
     private FirebaseApp arrancar(PropiedadesVbstats propiedades) {
         if (!propiedades.hayFirebase()) {
             log.info("VBStats: sin credenciales de Firebase; no se podrán mandar notificaciones");
+            problema = "Falta BLUEDEBUG_VBSTATS_FIREBASE con la cuenta de servicio; sin ella no se puede enviar.";
             return null;
         }
         try {
             byte[] json = Base64.getDecoder().decode(propiedades.firebaseJson().trim());
             GoogleCredentials credenciales = GoogleCredentials.fromStream(new ByteArrayInputStream(json));
+
+            // Se firma algo en local antes de dar el servicio por bueno. Una clave
+            // puede leerse sin error y no saber firmar: pasó con una a la que se le
+            // había corrompido un parámetro CRT (dp). Java la rechaza en cada firma;
+            // Node la acepta porque recalcula sin CRT, así que el backend de VBStats
+            // mandaba bien y el panel fallaba los 49 envíos en silencio.
+            if (credenciales instanceof ServiceAccountCredentials cuenta) {
+                try {
+                    cuenta.sign("comprobacion".getBytes(StandardCharsets.UTF_8));
+                } catch (Exception e) {
+                    problema = "La clave privada de BLUEDEBUG_VBSTATS_FIREBASE no sabe firmar (está corrupta). "
+                            + "Genera una nueva en Firebase › Cuentas de servicio y sustitúyela.";
+                    log.error("VBStats: {}", problema, e);
+                    return null;
+                }
+            }
 
             // La app va con nombre propio porque en este mismo proceso vive también la
             // de CVO, que es otro proyecto de Firebase distinto. Con la instancia por
@@ -69,6 +91,7 @@ public class ServicioFcm {
                     .orElseGet(() -> FirebaseApp.initializeApp(opciones, NOMBRE_APP));
         } catch (Exception e) {
             log.warn("VBStats: las credenciales de Firebase no valen: {}", e.getMessage());
+            problema = "BLUEDEBUG_VBSTATS_FIREBASE no se puede leer como cuenta de servicio: " + e.getMessage();
             return null;
         }
     }
@@ -77,14 +100,21 @@ public class ServicioFcm {
         return app != null;
     }
 
+    public String problema() {
+        return problema;
+    }
+
     /**
      * Lo que pasó al mandar.
      *
      * @param entregados     a cuántos llegó.
      * @param fallidos       cuántos fallaron por cualquier motivo.
      * @param tokensCaducados los que FCM dice que ya no existen, para borrarlos.
+     * @param motivos        código de error de FCM → cuántas veces. Sin esto, un
+     *                       envío que no llega a nadie queda como «0» en el
+     *                       historial y no hay forma de saber por qué.
      */
-    public record Envio(int entregados, int fallidos, List<String> tokensCaducados) {}
+    public record Envio(int entregados, int fallidos, List<String> tokensCaducados, Map<String, Integer> motivos) {}
 
     public Envio enviar(List<String> tokens, String titulo, String cuerpo) {
         if (app == null) {
@@ -94,6 +124,10 @@ public class ServicioFcm {
         int entregados = 0;
         int fallidos = 0;
         List<String> caducados = new ArrayList<>();
+        Map<String, Integer> motivos = new TreeMap<>();
+        // Un ejemplo del mensaje completo por código: el código solo a veces no
+        // basta («INVALID_ARGUMENT» dice poco sin la frase de Google detrás).
+        Map<String, String> ejemplos = new TreeMap<>();
 
         for (int i = 0; i < tokens.size(); i += TAMANO_LOTE) {
             List<String> lote = tokens.subList(i, Math.min(tokens.size(), i + TAMANO_LOTE));
@@ -114,6 +148,7 @@ public class ServicioFcm {
                 // siguiente, en vez de tirar el envío completo por un lote malo.
                 log.error("VBStats: falló un lote de notificaciones", e);
                 fallidos += lote.size();
+                motivos.merge(codigoDe(e), lote.size(), Integer::sum);
                 continue;
             }
 
@@ -126,6 +161,10 @@ public class ServicioFcm {
                 if (fallo == null) {
                     continue;
                 }
+                String motivo = codigoDe(fallo);
+                motivos.merge(motivo, 1, Integer::sum);
+                ejemplos.putIfAbsent(motivo, fallo.getMessage());
+
                 MessagingErrorCode codigo = fallo.getMessagingErrorCode();
                 // UNREGISTERED es «ese móvil ya no tiene la app»; INVALID_ARGUMENT, un
                 // token con una forma que ya no vale. Los demás errores pueden ser
@@ -137,7 +176,24 @@ public class ServicioFcm {
             }
         }
 
-        return new Envio(entregados, fallidos, caducados);
+        if (!motivos.isEmpty()) {
+            log.warn("VBStats push: entregados={} fallidos={} motivos={} ejemplos={}",
+                    entregados, fallidos, motivos, ejemplos);
+        }
+
+        return new Envio(entregados, fallidos, caducados, motivos);
+    }
+
+    /**
+     * El nombre del error tal cual lo da FCM, que es lo que se puede buscar. Cuando
+     * no trae código de mensajería —fallos de credenciales, de red— se usa el
+     * genérico del SDK, que es donde aparece p. ej. una clave de servicio revocada.
+     */
+    private static String codigoDe(FirebaseMessagingException e) {
+        if (e.getMessagingErrorCode() != null) {
+            return e.getMessagingErrorCode().name();
+        }
+        return e.getErrorCode() != null ? e.getErrorCode().name() : "DESCONOCIDO";
     }
 
     /** El proyecto de Firebase contra el que se está hablando, para el panel de ajustes. */

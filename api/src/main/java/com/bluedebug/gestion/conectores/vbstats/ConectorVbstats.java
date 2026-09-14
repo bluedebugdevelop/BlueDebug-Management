@@ -309,8 +309,7 @@ public class ConectorVbstats implements ConectorApp {
             throw new PeticionInvalida("Esa audiencia no existe");
         }
         if (!fcm.configurado()) {
-            return ResultadoAccion.error(
-                    "Falta BLUEDEBUG_VBSTATS_FIREBASE con la cuenta de servicio; sin ella no se puede enviar.");
+            return ResultadoAccion.error(fcm.problema());
         }
 
         List<String> tokens = repositorio.tokensDe(audiencia);
@@ -334,13 +333,49 @@ public class ConectorVbstats implements ConectorApp {
             log.info("VBStats: borrados {} tokens que FCM da por muertos", limpiados);
         }
 
-        return ResultadoAccion.correcta("Aviso enviado")
+        // Mismo criterio que CVO: el mensaje dice lo que ha pasado, no lo que se ha
+        // intentado. Antes esto decía «Aviso enviado» con 0 entregados, y quedaba
+        // en la auditoría como «ok».
+        boolean fracaso = envio.entregados() == 0 && envio.fallidos() > 0;
+        String mensaje;
+        if (fracaso) {
+            mensaje = "No llegó a ningún móvil" + explicacion(envio.motivos());
+        } else if (envio.fallidos() > 0) {
+            mensaje = "Llegó a " + envio.entregados() + " de " + tokens.size() + " dispositivos"
+                    + explicacion(envio.motivos());
+        } else {
+            mensaje = "Entregado en " + envio.entregados() + " dispositivos";
+        }
+
+        var resultado = (fracaso ? ResultadoAccion.fallida(mensaje) : ResultadoAccion.correcta(mensaje))
                 .con("entregados", envio.entregados())
                 .con("fallidos", envio.fallidos())
                 .con("dispositivos", tokens.size())
                 .con("tokensLimpiados", limpiados)
-                .con("registrado", registro != null)
-                .listo();
+                .con("registrado", registro != null);
+        envio.motivos().forEach((codigo, cuantos) -> resultado.con("motivo: " + codigo, cuantos));
+        return resultado.listo();
+    }
+
+    /**
+     * Traduce los códigos de FCM que tienen una causa conocida y un arreglo fuera
+     * del código. Los demás van tal cual en los detalles.
+     */
+    private static String explicacion(Map<String, Integer> motivos) {
+        if (motivos.containsKey("THIRD_PARTY_AUTH_ERROR")) {
+            return ". Los iPhone fallan porque Firebase no tiene la clave de APNs "
+                    + "(Firebase › Cloud Messaging › configuración de Apple).";
+        }
+        if (motivos.containsKey("SENDER_ID_MISMATCH")) {
+            return ". Los tokens son de otro proyecto de Firebase que el de BLUEDEBUG_VBSTATS_FIREBASE.";
+        }
+        if (motivos.containsKey("PERMISSION_DENIED") || motivos.containsKey("UNAUTHENTICATED")) {
+            return ". La cuenta de servicio de BLUEDEBUG_VBSTATS_FIREBASE no vale (¿clave rotada o revocada?).";
+        }
+        if (motivos.containsKey("UNREGISTERED")) {
+            return ". Parte de los móviles ya no tienen la app; esos tokens se han borrado.";
+        }
+        return "";
     }
 
     // ------------------------------------------------------- novedades de versión

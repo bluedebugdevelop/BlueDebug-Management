@@ -75,7 +75,7 @@ posición pondría el titular equivocado en el idioma equivocado.
 | App | Por dónde entra | Qué expone |
 |---|---|---|
 | VBStats | MySQL + Stripe + FCM | cuentas, suscripciones, ingresos, notificaciones, novedades de versión |
-| CV Oviedo | Firebase | altas y fichas del club, equipos, plantillas, roles, contraseñas, avisos |
+| CV Oviedo | Firebase | altas y fichas del club, equipos, plantillas, roles, contraseñas, avisos, horarios de entrenamiento |
 
 Y además, **los gastos de la propia empresa**: `contabilidad/`, que no es un
 conector porque no hay ninguna app detrás. Vive al lado de `panel/` y usa el

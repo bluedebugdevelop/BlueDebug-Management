@@ -538,7 +538,104 @@ public class RepositorioCvo {
         lote.commit().get();
     }
 
+    // ------------------------------------------------- horario de entrenamientos
+
+    /*
+     * El horario semanal de cada equipo.
+     *
+     * Hasta ahora esto solo se podía tocar desde el móvil del entrenador. El
+     * problema práctico es de septiembre: el club publica el cartel de horarios
+     * de la temporada y hay que dejarlo puesto en trece equipos, muchos de los
+     * cuales todavía no tienen entrenador asignado en la app. Alguien tenía que
+     * ir equipo por equipo desde un teléfono.
+     *
+     * `dia` va como `Date.getDay()` de JavaScript —0 domingo, 1 lunes— porque es
+     * lo que guarda la app; traducirlo aquí a `DayOfWeek` de Java sería crear dos
+     * verdades sobre el mismo número.
+     */
+    public record Entrenamiento(String id, String equipoId, int dia, String inicio,
+                                String fin, String lugar, boolean activo) {}
+
+    public List<Entrenamiento> entrenamientos(String equipoId) {
+        List<Entrenamiento> lista = new ArrayList<>();
+        for (QueryDocumentSnapshot doc : subDocumentos("equipos", equipoId, "entrenamientos")) {
+            Long dia = doc.getLong("dia");
+            lista.add(new Entrenamiento(
+                    doc.getId(),
+                    equipoId,
+                    dia == null ? 1 : dia.intValue(),
+                    doc.getString("inicio"),
+                    doc.getString("fin"),
+                    doc.getString("lugar"),
+                    !Boolean.FALSE.equals(doc.getBoolean("activo"))));
+        }
+
+        /* Se ordena aquí y empezando en lunes, no en la consulta.
+
+           Firestore ordenaría el domingo (0) el primero, y un horario semanal
+           empieza en lunes. Es la misma razón y el mismo orden que en la app
+           (`escucharEntrenamientos`): si los dos sitios no ordenan igual, el
+           panel y el móvil enseñan el mismo horario en distinto orden y parece
+           que uno de los dos está mal. */
+        lista.sort((a, b) -> {
+            int pa = a.dia() == 0 ? 7 : a.dia();
+            int pb = b.dia() == 0 ? 7 : b.dia();
+            if (pa != pb) {
+                return Integer.compare(pa, pb);
+            }
+            return String.valueOf(a.inicio()).compareTo(String.valueOf(b.inicio()));
+        });
+        return lista;
+    }
+
+    /** El horario de varios equipos de una vez, para montar un desplegable. */
+    public List<Entrenamiento> entrenamientosDe(List<String> equipoIds) {
+        List<Entrenamiento> todos = new ArrayList<>();
+        for (String id : equipoIds) {
+            todos.addAll(entrenamientos(id));
+        }
+        return todos;
+    }
+
+    public String crearEntrenamiento(String equipoId, Map<String, Object> datos)
+            throws ExecutionException, InterruptedException {
+        return fuente.firestore()
+                .collection("equipos").document(equipoId)
+                .collection("entrenamientos")
+                .add(datos).get().getId();
+    }
+
+    public void cambiarEntrenamiento(String equipoId, String id, Map<String, Object> cambios)
+            throws ExecutionException, InterruptedException {
+        fuente.firestore()
+                .collection("equipos").document(equipoId)
+                .collection("entrenamientos").document(id)
+                .update(cambios).get();
+    }
+
+    public void borrarEntrenamiento(String equipoId, String id)
+            throws ExecutionException, InterruptedException {
+        fuente.firestore()
+                .collection("equipos").document(equipoId)
+                .collection("entrenamientos").document(id)
+                .delete().get();
+    }
+
     // ------------------------------------------------------------------- apoyo
+
+    private List<QueryDocumentSnapshot> subDocumentos(String coleccion, String id, String sub) {
+        try {
+            return fuente.firestore()
+                    .collection(coleccion).document(id).collection(sub)
+                    .get().get().getDocuments();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return List.of();
+        } catch (Exception e) {
+            log.warn("CVO: no se pudo leer {}/{}/{}: {}", coleccion, id, sub, e.getMessage());
+            return List.of();
+        }
+    }
 
     private List<QueryDocumentSnapshot> documentos(String coleccion) {
         try {

@@ -66,11 +66,14 @@ public class ConectorCvo implements ConectorApp {
     private static final String ARCHIVAR_EQUIPO = "archivar-equipo";
     private static final String ANADIR_A_EQUIPO = "anadir-a-equipo";
     private static final String QUITAR_DE_EQUIPO = "quitar-de-equipo";
+    private static final String PONER_ENTRENAMIENTO = "poner-entrenamiento";
+    private static final String QUITAR_ENTRENAMIENTO = "quitar-entrenamiento";
 
     private static final String GRUPO_AVISOS = "Avisos";
     private static final String GRUPO_PERSONAS = "Personas";
     private static final String GRUPO_EQUIPOS = "Equipos";
     private static final String GRUPO_PLANTILLAS = "Plantillas";
+    private static final String GRUPO_HORARIOS = "Horarios";
 
     /**
      * Lo que hay que escribir en un campo para DEJARLO VACÍO.
@@ -93,6 +96,35 @@ public class ConectorCvo implements ConectorApp {
     private static final List<String> GENEROS = List.of("Masculino", "Femenino", "Mixto");
 
     private static final List<String> ROLES = List.of("jugador", "entrenador", "admin");
+
+    /**
+     * Los días como los numera la app: 0 domingo, 1 lunes... igual que
+     * `Date.getDay()` en JavaScript.
+     *
+     * Se listan de lunes a domingo porque así es como se lee un horario de
+     * entrenamientos, no en el orden del número.
+     */
+    private static final List<Campo.Opcion> DIAS = List.of(
+            new Campo.Opcion("1", "Lunes", null),
+            new Campo.Opcion("2", "Martes", null),
+            new Campo.Opcion("3", "Miércoles", null),
+            new Campo.Opcion("4", "Jueves", null),
+            new Campo.Opcion("5", "Viernes", null),
+            new Campo.Opcion("6", "Sábado", null),
+            new Campo.Opcion("0", "Domingo", null));
+
+    private static final String[] NOMBRE_DIA = {
+            "Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"};
+
+    /**
+     * Dónde entrena el club, igual que en la app (`entrenamientos.tsx`).
+     *
+     * Viene puesto para no teclearlo treinta y cinco veces y para que no acabe
+     * escrito de cinco formas distintas, pero el campo se puede cambiar: el
+     * modelo guarda el lugar en CADA entrenamiento, así que el día que el club
+     * use dos pabellones esto sigue valiendo.
+     */
+    private static final String SEDE_CLUB = "Polideportivo José Manuel Fuente (Colloto)";
 
     private final FuenteCvo fuente;
     private final RepositorioCvo repositorio;
@@ -230,6 +262,8 @@ public class ConectorCvo implements ConectorApp {
         acciones.add(archivado(equipos));
         acciones.add(entradaEnPlantilla(equipos, fichas));
         acciones.add(salidaDePlantilla(equipos, fichas));
+        acciones.add(altaDeEntrenamiento(equipos));
+        acciones.add(bajaDeEntrenamiento(equipos));
         return acciones;
     }
 
@@ -429,6 +463,71 @@ public class ConectorCvo implements ConectorApp {
                 GRUPO_PLANTILLAS);
     }
 
+    // --------------------------------------------------------------- horarios
+
+    private AccionAdmin altaDeEntrenamiento(List<RepositorioCvo.Equipo> equipos) {
+        return new AccionAdmin(
+                PONER_ENTRENAMIENTO,
+                "Poner un entrenamiento",
+                "Lo añade al horario semanal del equipo. Se repite todas las semanas y sale en "
+                        + "el planning de todos sus jugadores.",
+                "reloj",
+                false,
+                "Añadir",
+                List.of(
+                        Campo.seleccion("equipo", "De qué equipo", null,
+                                opcionesDeEquipo(equipos, false)),
+                        Campo.seleccion("dia", "Qué día", null, DIAS),
+                        Campo.texto("inicio", "Empieza", 5, "En formato 24 h: 20:30"),
+                        Campo.texto("fin", "Acaba", 5, "En formato 24 h: 22:30"),
+                        Campo.textoOpcional("lugar", "Dónde", 80,
+                                "En blanco, el pabellón del club."),
+                        Campo.textoOpcional("notas", "Notas", 140, null)),
+                GRUPO_HORARIOS);
+    }
+
+    private AccionAdmin bajaDeEntrenamiento(List<RepositorioCvo.Equipo> equipos) {
+        /* El desplegable trae los entrenamientos de TODOS los equipos activos.
+
+           Son dos o tres por equipo: leerlos todos al montar el formulario es
+           más barato que la alternativa, que sería pedir primero el equipo,
+           recargar y volver a preguntar. El panel construye los formularios de
+           una sentada a partir de esta declaración y no tiene forma de
+           encadenar dos pasos. */
+        List<String> activos = equipos.stream()
+                .filter(e -> !e.archivado())
+                .map(RepositorioCvo.Equipo::id)
+                .toList();
+
+        Map<String, String> nombres = new LinkedHashMap<>();
+        equipos.forEach(e -> nombres.put(e.id(), e.nombre()));
+
+        List<Campo.Opcion> opciones = repositorio.entrenamientosDe(activos).stream()
+                /* El valor lleva dentro el equipo: `equipoId:entrenamientoId`.
+
+                   Un entrenamiento vive en una subcolección del equipo, así que
+                   su id solo no basta para encontrarlo. Sin esto habría que
+                   buscarlo recorriendo los trece equipos. */
+                .map(x -> new Campo.Opcion(
+                        x.equipoId() + ":" + x.id(),
+                        nombres.getOrDefault(x.equipoId(), x.equipoId()) + " · "
+                                + NOMBRE_DIA[Math.floorMod(x.dia(), 7)] + " "
+                                + x.inicio() + "–" + x.fin(),
+                        x.activo() ? null : "suspendido"))
+                .toList();
+
+        return new AccionAdmin(
+                QUITAR_ENTRENAMIENTO,
+                "Quitar un entrenamiento",
+                "Lo borra del horario semanal. Para suspenderlo solo unas semanas es mejor "
+                        + "desactivarlo desde la app, que deja constancia y se puede devolver.",
+                "menos",
+                true,
+                "Quitar",
+                List.of(Campo.seleccion("entrenamiento", "Cuál", null, opciones)),
+                GRUPO_HORARIOS);
+    }
+
     @Override
     public ResultadoAccion ejecutar(String accionId, Map<String, Object> parametros, String emailAdmin) {
         return switch (accionId) {
@@ -442,6 +541,8 @@ public class ConectorCvo implements ConectorApp {
             case ARCHIVAR_EQUIPO -> archivarEquipo(parametros, emailAdmin);
             case ANADIR_A_EQUIPO -> anadirAEquipo(parametros, emailAdmin);
             case QUITAR_DE_EQUIPO -> quitarDeEquipo(parametros, emailAdmin);
+            case PONER_ENTRENAMIENTO -> ponerEntrenamiento(parametros, emailAdmin);
+            case QUITAR_ENTRENAMIENTO -> quitarEntrenamiento(parametros, emailAdmin);
             default -> ResultadoAccion.error("CVO no conoce la acción '" + accionId + "'");
         };
     }
@@ -1051,6 +1152,121 @@ public class ConectorCvo implements ConectorApp {
                         Tabla.Columna.texto("estado", "Estado")),
                 filas,
                 "El club todavía no tiene equipos creados"));
+    }
+
+    // ---------------------------------------------- horarios (la ejecución)
+
+    private ResultadoAccion ponerEntrenamiento(Map<String, Object> parametros, String emailAdmin) {
+        String equipoId = texto(parametros, "equipo");
+        if (equipoId.isBlank()) {
+            throw new PeticionInvalida("Hay que elegir el equipo");
+        }
+
+        int dia = diaValido(texto(parametros, "dia"));
+        String inicio = horaValida(texto(parametros, "inicio"), "la hora de empezar");
+        String fin = horaValida(texto(parametros, "fin"), "la hora de acabar");
+
+        /* Un entrenamiento que acaba antes de empezar es un dedazo, no un turno
+           de noche. Se comparan como texto y funciona porque 'HH:MM' con dos
+           cifras ordena igual alfabéticamente que cronológicamente — que es la
+           razón de guardarlas así y no como números sueltos. */
+        if (inicio.compareTo(fin) >= 0) {
+            throw new PeticionInvalida("El entrenamiento acaba antes de empezar");
+        }
+
+        String lugar = texto(parametros, "lugar");
+        if (lugar.isBlank()) {
+            lugar = SEDE_CLUB;
+        }
+
+        // Ya puesto, no se duplica. Repetir el formulario por dudar de si se
+        // guardó es lo más normal del mundo, y dos entrenamientos idénticos en el
+        // horario salen dos veces en el planning de todo el equipo.
+        boolean repetido = repositorio.entrenamientos(equipoId).stream()
+                .anyMatch(x -> x.dia() == dia && inicio.equals(x.inicio()));
+        if (repetido) {
+            return ResultadoAccion.error(
+                    "Ese equipo ya entrena el " + NOMBRE_DIA[dia].toLowerCase() + " a las " + inicio);
+        }
+
+        Map<String, Object> datos = new LinkedHashMap<>();
+        datos.put("dia", dia);
+        datos.put("inicio", inicio);
+        datos.put("fin", fin);
+        datos.put("lugar", lugar);
+        datos.put("notas", texto(parametros, "notas"));
+        datos.put("activo", true);
+
+        try {
+            repositorio.crearEntrenamiento(equipoId, datos);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ResultadoAccion.error("Se interrumpió al guardar el entrenamiento");
+        } catch (Exception e) {
+            log.warn("CVO: no se pudo crear el entrenamiento de {}: {}", equipoId, e.getMessage());
+            return ResultadoAccion.error("No se pudo guardar: " + e.getMessage());
+        }
+
+        log.info("AUDITORÍA: {} puso entrenamiento en el equipo {} ({} {}-{})",
+                emailAdmin, equipoId, NOMBRE_DIA[dia], inicio, fin);
+
+        /* Al equipo no se le avisa desde aquí.
+
+           En la app, cambiar el horario manda una notificación porque lo hace su
+           entrenador y el equipo tiene que enterarse. Esto otro es montar la
+           temporada: treinta y cinco entrenamientos de golpe serían treinta y
+           cinco pitidos. Para contarlo está «Enviar aviso», que además deja
+           escribir qué ha cambiado. */
+        return ResultadoAccion.correcta(
+                        NOMBRE_DIA[dia] + " de " + inicio + " a " + fin + ", añadido")
+                .con("lugar", lugar)
+                .listo();
+    }
+
+    private ResultadoAccion quitarEntrenamiento(Map<String, Object> parametros, String emailAdmin) {
+        String elegido = texto(parametros, "entrenamiento");
+        // Llega como `equipoId:entrenamientoId`: ver por qué en `bajaDeEntrenamiento`.
+        String[] partes = elegido.split(":", 2);
+        if (partes.length != 2 || partes[0].isBlank() || partes[1].isBlank()) {
+            throw new PeticionInvalida("Hay que elegir el entrenamiento que se quita");
+        }
+
+        try {
+            repositorio.borrarEntrenamiento(partes[0], partes[1]);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return ResultadoAccion.error("Se interrumpió al borrar el entrenamiento");
+        } catch (Exception e) {
+            log.warn("CVO: no se pudo borrar el entrenamiento {}: {}", elegido, e.getMessage());
+            return ResultadoAccion.error("No se pudo borrar: " + e.getMessage());
+        }
+
+        log.info("AUDITORÍA: {} quitó el entrenamiento {} del equipo {}",
+                emailAdmin, partes[1], partes[0]);
+
+        return ResultadoAccion.correcta("Entrenamiento quitado del horario").listo();
+    }
+
+    /** '20:30' o nada. Es el mismo formato que valida la app (`horaValida`). */
+    private String horaValida(String valor, String queEs) {
+        String limpio = valor.trim();
+        if (!limpio.matches("([01]\\d|2[0-3]):[0-5]\\d")) {
+            throw new PeticionInvalida(
+                    "Revisa " + queEs + ": va en formato 24 h con dos cifras, como 20:30");
+        }
+        return limpio;
+    }
+
+    private int diaValido(String valor) {
+        try {
+            int dia = Integer.parseInt(valor.trim());
+            if (dia < 0 || dia > 6) {
+                throw new PeticionInvalida("Ese día de la semana no existe");
+            }
+            return dia;
+        } catch (NumberFormatException e) {
+            throw new PeticionInvalida("Hay que elegir el día de la semana");
+        }
     }
 
     // ------------------------------------------------- opciones y validación
